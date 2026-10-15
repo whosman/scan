@@ -108,9 +108,17 @@ body.fade .sheet{opacity:.15}
   <hr>
   <p class="row"><button id="hGo" class="main grow" disabled>Review pages</button></p>
   <p class="small" id="hClear" hidden><a id="hClearA" href="#">Discard all pages</a></p>
-  <p class="small">Everything happens in this browser. Nothing is uploaded.</p>
+  <p class="small">Everything happens in this browser. Nothing is uploaded. <a id="hDiag" href="#">Check this phone</a></p>
   <input type="file" id="fPick" accept="image/*" multiple hidden>
   <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
+</section>
+
+<!-- DIAGNOSTICS -->
+<section id="diag" class="scr doc" hidden>
+  <h1>Check this phone</h1>
+  <p class="small">This runs a made-up page through the whole pipeline on this phone, and reports what it can do and how long it takes. It needs about 20 seconds. Nothing leaves the phone.</p>
+  <pre id="dOut" style="font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;margin:0 0 12px"></pre>
+  <p class="row"><button id="dCopy" class="main grow" disabled>Copy the report</button><button id="dBack" class="grow">Back</button></p>
 </section>
 
 <!-- CAMERA -->
@@ -1109,7 +1117,7 @@ function workerMain() {
     var t = byId('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
   }
-  function show(which) { ['home', 'cam', 'rev', 'crop'].forEach(function (k) { el[k].hidden = k !== which; }); }
+  function show(which) { ['home', 'cam', 'rev', 'crop', 'diag'].forEach(function (k) { var e = document.getElementById(k); if (e) e.hidden = k !== which; }); }
   function fmtMB(n) { return (n / 1048576).toFixed(n > 1e7 ? 1 : 2) + ' MB'; }
   function optsNow() { return { gamma: S.set.ink, floorK: S.set.bg, weight: S.set.lw, ruleSuppress: S.set.rules ? 1 : 0 }; }
   function dateName() { var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); }; return (S.cfg.namePrefix || 'Scan') + ' ' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
@@ -1622,6 +1630,77 @@ function workerMain() {
   }
   byId('hGo').onclick = startReview;
   function newScan() { S.pages.forEach(function (p) { if (p.worker) p.worker.postMessage({ type: 'drop', id: p.id, rid: 0 }); }); S.pages = []; S.cur = 0; S.pdf = null; S.pendingName = null; el.sRes.hidden = true; el.view.width = 1; view.w = 0; goHome(); }
+
+  /* ---------- check this phone: real timings from a made-up page ---------- */
+  var diagReport = '';
+  function dLine(s) { diagReport += s + '\n'; byId('dOut').textContent = diagReport; window.scrollTo && window.scrollTo(0, 0); }
+  function sleepMs(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function runDiag() {
+    diagReport = ''; byId('dOut').textContent = ''; byId('dCopy').disabled = true; show('diag');
+    var ok = function (v) { return v ? 'yes' : 'NO'; };
+    dLine('Scan check, ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
+    dLine('Browser: ' + navigator.userAgent);
+    dLine('Screen: ' + screen.width + 'x' + screen.height + ' at ' + (window.devicePixelRatio || 1) + 'x, window ' + window.innerWidth + 'x' + window.innerHeight);
+    dLine('Cores: ' + (navigator.hardwareConcurrency || 'unknown') + ', memory hint: ' + (navigator.deviceMemory || 'unknown'));
+    dLine('');
+    dLine('Features');
+    dLine('  Worker ' + ok(window.Worker) + ', WebAssembly ' + ok(typeof WebAssembly === 'object') + ', Blob ' + ok(window.Blob) + ', FileReader ' + ok(window.FileReader));
+    dLine('  touch events ' + ok('ontouchstart' in window) + ', pointer events ' + ok('onpointerdown' in window) + ', service worker ' + ok('serviceWorker' in navigator));
+    dLine('  camera API ' + ok(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) + ', share with files ' + ok(navigator.canShare) + ', secure context ' + ok(window.isSecureContext));
+    // the largest canvas this phone will give us
+    var sizes = [[2063, 2750], [2550, 3300], [3000, 4000], [4096, 4096]], got = 0;
+    sizes.forEach(function (s) { try { var c = document.createElement('canvas'); c.width = s[0]; c.height = s[1]; var x = c.getContext('2d'); x.fillRect(0, 0, 1, 1); var px = x.getImageData(0, 0, 1, 1).data; if (px[3] === 255) got = s[0] * s[1]; c.width = c.height = 0; } catch (e) {} });
+    dLine('  largest canvas that worked: ' + (got / 1e6).toFixed(1) + ' megapixels');
+    if (autoOrient === null) await detectAutoOrient();
+    dLine('  browser rotates photos from EXIF itself: ' + ok(autoOrient));
+    dLine('');
+    // a made-up photo: dark table, tilted paper, pencil-like writing, 3024x4032 like a phone camera
+    dLine('Making a test photo (3024 x 4032)...'); await sleepMs(30);
+    var tw = 3024, th = 4032, c = document.createElement('canvas'); c.width = tw; c.height = th; var x = c.getContext('2d');
+    x.fillStyle = '#2a1f1a'; x.fillRect(0, 0, tw, th);
+    x.save(); x.translate(tw / 2, th / 2); x.rotate(0.12); var pw = 2300, ph = 2976;
+    var g = x.createLinearGradient(-pw / 2, -ph / 2, pw / 2, ph / 2); g.addColorStop(0, '#e8ecee'); g.addColorStop(1, '#bfc5c8'); x.fillStyle = g; x.fillRect(-pw / 2, -ph / 2, pw, ph);
+    x.strokeStyle = '#4a4a4a'; x.fillStyle = '#4a4a4a'; x.lineWidth = 5; x.lineCap = 'round'; x.font = 'italic 64px Georgia,serif';
+    for (var ln = 0; ln < 26; ln++) { var yy = -ph / 2 + 220 + ln * 100; x.fillText('F = ma, v = d / t, \u03a3F = 0, 12.5 \u00b1 0.3 m/s', -pw / 2 + 140 + (ln % 3) * 30, yy); if (ln % 5 === 4) { x.beginPath(); x.moveTo(-pw / 2 + 120, yy + 20); x.lineTo(pw / 2 - 160, yy + 20); x.stroke(); } }
+    x.restore();
+    var blob = await new Promise(function (res) { c.toBlob(res, 'image/jpeg', 0.9); }); c.width = c.height = 0;
+    dLine('  JPEG size ' + (blob.size / 1048576).toFixed(1) + ' MB');
+    startWorkers(); await sleepMs(50);
+    var warmWait = 0; while (!S.hot && warmWait < 8000) { await sleepMs(100); warmWait += 100; }
+    dLine('');
+    dLine('Speed check (tiny page, ms)');
+    dLine('  JavaScript ' + (S.jsHot ? S.jsHot.toFixed(1) : '?') + (S.wasmHot ? ', WebAssembly ' + S.wasmHot.toFixed(1) : ', WebAssembly not used') + ' -> using ' + (S.impl || '?') + (S.note ? ' (' + S.note + ')' : ''));
+    var dpi = workingDpi();
+    dLine('  working resolution chosen: ' + dpi + ' dpi, workers: ' + workers.length);
+    dLine('');
+    dLine('One page, start to finish at ' + dpi + ' dpi');
+    var pg = { id: 9001, blob: blob, mode: 'ink', state: 'new', rot: 0 }, w = workers[0], T0 = performance.now(), tPrev = null, tFinal;
+    try {
+      var d = await decodePhoto(blob, 0, Math.round(11 * dpi * 1.25)); var tDec = performance.now();
+      dLine('  decode the photo: ' + Math.round(tDec - T0) + ' ms (' + d.w + ' x ' + d.h + ')');
+      var res = await callWorker(w, { type: 'analyze', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: null, small: d.small, dpi: dpi, opts: optsNow(), mode: 'ink' }, [d.buf, d.small.data.buffer], null, function () { if (!tPrev) tPrev = performance.now(); });
+      tFinal = performance.now();
+      dLine('  straightened preview shows after: ' + Math.round(tPrev - tDec) + ' ms');
+      dLine('  clean page ready after: ' + Math.round(tFinal - tDec) + ' ms  (page found: ' + (res.low ? 'NO, fell back to whole photo' : 'yes') + ')');
+      var ex = await callWorker(w, { type: 'export', id: pg.id, opts: optsNow(), mode: 'ink', outDpi: 200, stamp: null }, []);
+      var tEx = performance.now(); var bytes = buildPdf([{ w: ex.w, h: ex.h, dpi: ex.dpi, z: new Uint8Array(ex.z) }], { title: 'check' });
+      dLine('  save as PDF: ' + Math.round(tEx - tFinal) + ' ms, ' + Math.round(bytes.length / 1024) + ' KB');
+      dLine('');
+      var total = performance.now() - T0;
+      dLine('Total for one page: ' + (total / 1000).toFixed(1) + ' s');
+      dLine(total < 4000 ? 'Verdict: fast enough.' : total < 9000 ? 'Verdict: slower, but fine with the progress bar.' : 'Verdict: slow. Send this report.');
+      w.postMessage({ type: 'drop', id: pg.id, rid: 0 });
+    } catch (e) { dLine('FAILED: ' + String(e.message || e).slice(0, 300)); dLine('Send this report.'); }
+    byId('dCopy').disabled = false;
+  }
+  byId('hDiag').onclick = function (e) { e.preventDefault(); runDiag(); };
+  byId('dBack').onclick = function () { goHome(); };
+  byId('dCopy').onclick = function () {
+    var ta = document.createElement('textarea'); ta.value = diagReport; ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.focus(); ta.select();
+    var done = false; try { done = document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta);
+    if (navigator.clipboard && !done) { navigator.clipboard.writeText(diagReport).then(function () { toast('Copied'); }, function () { toast('Select the text and copy it'); }); } else toast(done ? 'Copied' : 'Select the text and copy it');
+  };
+  window.__diag = runDiag;
 
   /* ---------- hosts: a browser tab, a Home Screen app, or Scriptable ---------- */
   function finish(result) { result.settings = S.set; persist(); if (completion) completion(result); }

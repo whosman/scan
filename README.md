@@ -90,4 +90,6 @@ node test/live.mjs                     the published site
 
 ## Not yet tested on a real iPhone
 
-I tested in Chromium, in real WebKit, on a phone-sized screen, in a one-worker mode, and with a slowed-down CPU. I have not run it on an actual iPhone. The first things to check: the live camera in Safari, the share sheet with a PDF, and how long a page takes on an old phone.
+I tested in Chromium, in real WebKit, on a phone-sized screen, in a one-worker mode, and with a slowed-down CPU. I have not run it on an actual iPhone.
+
+To get real numbers from a real phone, tap **Check this phone** at the bottom of the home screen. It runs a made-up 12-megapixel photo through the whole pipeline on that phone and reports: the browser, whether WebAssembly, workers, the camera and file sharing work, the largest canvas the phone allows, which implementation it chose, and the seconds each step took. Tap Copy the report, or take a screenshot. That settles the open questions: the live camera in Safari, the share sheet with a PDF, and how long a page takes on an old phone.
