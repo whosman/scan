@@ -41,6 +41,7 @@ label{display:block}
 .grow{flex:1;min-width:0}
 .thumbs{display:flex;flex-wrap:wrap;margin:0 -4px}
 .th{width:64px;height:84px;margin:4px;border:1px solid #000;background:#fff center/cover no-repeat;position:relative;flex:0 0 auto}
+.th.num{font:20px/84px Georgia,serif;text-align:center;color:#444}
 .th b{position:absolute;right:0;top:0;width:24px;height:24px;background:#fff;border-left:1px solid #000;border-bottom:1px solid #000;font:16px/22px Georgia,serif;text-align:center;color:#a40000;font-weight:normal}
 /* review: the page fills the screen; everything else floats on it and steps aside */
 #stage{position:absolute;left:0;top:0;right:0;bottom:0;background:#d8d8d8;overflow:hidden;touch-action:none}
@@ -176,8 +177,13 @@ body.fade .sheet{opacity:.15}
    the page never freezes, and reports progress while it works.
    ================================================================== */
 function workerMain() {
-  var store = {};
+  var store = {}, K = null, useW = false;
   function send(o, t) { self.postMessage(o, t || []); }
+  // WebAssembly when it is verified and faster on this phone, JavaScript otherwise (and if WebAssembly ever fails)
+  function runAnalyze(src, sw, sh, geom, opts, prog, release) {
+    if (useW) { try { return analyzeW(K, src, sw, sh, geom, opts, prog, release); } catch (e) { useW = false; K = null; } }
+    return analyze(src, sw, sh, geom, opts, prog, release);
+  }
   self.onmessage = function (ev) {
     var m = ev.data, last = 0;
     function prog(f, label) { var now = Date.now(); if (f >= 1 || now - last > 60) { last = now; send({ type: 'progress', rid: m.rid, frac: f, label: label }); } }
@@ -195,7 +201,7 @@ function workerMain() {
           var rect = warpPreview(src, m.sw, m.sh, geom, 640);
           send({ type: 'preview', rid: m.rid, rect: rect.data.buffer, rw: rect.w, rh: rect.h, quadN: quadN, low: low }, [rect.data.buffer]);
         }
-        var an = analyze(src, m.sw, m.sh, geom, m.opts, prog, function () { src = null; m.buf = null; });
+        var an = runAnalyze(src, m.sw, m.sh, geom, m.opts, prog, function () { src = null; m.buf = null; });
         if (m.type === 'analyze') {
           store[m.id] = an;
           var gray = new Uint8Array(an.w * an.h);
@@ -220,14 +226,23 @@ function workerMain() {
         prog(0.8, 'Compressing');
         var pg = compressPage(gg, W, H, dpi);
         send({ type: 'done', rid: m.rid, w: pg.w, h: pg.h, dpi: pg.dpi, z: pg.z.buffer }, [pg.z.buffer]);
-      } else if (m.type === 'warm') {   // run the hot loops once on a tiny page so they are compiled before the first real one
-        var WW = 300, WH = 400, wb = new Uint8Array(WW * WH * 4);
-        for (var wy = 0; wy < WH; wy++) for (var wx = 0; wx < WW; wx++) { var wo = (wy * WW + wx) * 4, v = 205 - (wx / WW) * 30 + ((wx * 7 + wy * 13) % 9); if (wy % 40 === 20 || (wx > 60 && wx < 64 && wy > 50 && wy < 300)) v = 90; wb[wo] = v; wb[wo + 1] = v; wb[wo + 2] = v + 6; wb[wo + 3] = 255; }
-        var wg = pageGeometry(WW, WH, null, 100, {}), wo2 = new Uint8Array(WW * WH), wa;
-        var w0 = Date.now(); wa = analyze(wb, WW, WH, wg, {}, null); shape(wa, {}, wo2, 'ink'); var cold = Date.now() - w0;
-        var w1 = (self.performance || Date).now(); for (var rep = 0; rep < 3; rep++) { wa = analyze(wb, WW, WH, wg, {}, null); shape(wa, {}, wo2, 'ink'); } var hot = ((self.performance || Date).now() - w1) / 3;
+      } else if (m.type === 'warm') {   // run the hot loops on a tiny page: compiles them, and tells us how fast this phone is
+        var nowf = function () { return (self.performance || Date).now(); };
+        var WW = 300, WH = 400, wg = pageGeometry(WW, WH, null, 100, {}), wo2 = new Uint8Array(WW * WH), wa;
+        var c0 = nowf(); wa = analyze(syntheticPage(WW, WH), WW, WH, wg, {}, null); shape(wa, {}, wo2, 'ink'); var cold = nowf() - c0;
+        var impl = 'js', jsHot = 0, wasmHot = 0, note = '';
+        try {
+          if (typeof WASM_B64 === 'string' && WASM_B64.length > 100) {
+            K = initWasm(wasmBytesFromBase64(WASM_B64));
+            if (K) {
+              var chk = checkWasm(K, nowf); jsHot = chk.jsMs; wasmHot = chk.wasmMs;
+              if (chk.ok && chk.wasmMs < chk.jsMs * 0.9) { useW = true; impl = 'wasm'; } else { note = chk.ok ? 'js is faster' : 'wasm disagreed'; K = null; }
+            } else note = 'wasm unavailable';
+          }
+        } catch (e) { K = null; useW = false; note = 'wasm error'; }
+        if (!jsHot) { var j0 = nowf(); for (var rep = 0; rep < 3; rep++) analyze(syntheticPage(WW, WH), WW, WH, wg, {}, null); jsHot = (nowf() - j0) / 3; }
         compressPage(wo2, wa.w, wa.h, 100);
-        send({ type: 'done', rid: m.rid, cold: cold, hot: hot });
+        send({ type: 'done', rid: m.rid, cold: cold, jsHot: jsHot, wasmHot: wasmHot, impl: impl, note: note });
       } else if (m.type === 'drop') { delete store[m.id]; }
     } catch (e) { send({ type: 'error', rid: m.rid, error: String((e && e.stack) || e) }); }
   };
@@ -316,22 +331,29 @@ function workerMain() {
   function loadImg(blob) { return new Promise(function (res, rej) { var u = URL.createObjectURL(blob), im = new Image(); im.onload = function () { res({ im: im, u: u }); }; im.onerror = function () { URL.revokeObjectURL(u); rej(new Error('Could not read this image')); }; im.src = u; }); }
   // { buf, w, h, small:{data,w,h} } with the photo upright and the long side at most maxSide
   async function decodePhoto(blob, userRot, maxSide) {
+    var T = [performance.now()];
     if (autoOrient === null) await detectAutoOrient();
+    T.push(performance.now());
     var rot = userRot || 0;
     if (!autoOrient) { var head = await new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(new ArrayBuffer(0)); }; r.readAsArrayBuffer(blob.slice(0, 131072)); }); rot += readExifRot(head); }
     rot = ((rot % 4) + 4) % 4;
+    T.push(performance.now());
     var l = await loadImg(blob), im = l.im, sw0 = im.naturalWidth, sh0 = im.naturalHeight, swp = rot % 2 === 1;
+    T.push(performance.now());
     var sw = swp ? sh0 : sw0, sh = swp ? sw0 : sh0;
     var k = Math.min(1, maxSide / Math.max(sw, sh)), w = Math.round(sw * k), h = Math.round(sh * k);
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var x = c.getContext('2d'); x.save(); x.translate(w / 2, h / 2); x.rotate(rot * Math.PI / 2);
     var dw = swp ? h : w, dh = swp ? w : h; x.drawImage(im, -dw / 2, -dh / 2, dw, dh); x.restore();
+    T.push(performance.now());
     var big = x.getImageData(0, 0, w, h);
+    T.push(performance.now());
     var sk = Math.min(1, 640 / Math.max(w, h)), smw = Math.max(8, Math.round(w * sk)), smh = Math.max(8, Math.round(h * sk));
     var sc = document.createElement('canvas'); sc.width = smw; sc.height = smh; var sx = sc.getContext('2d'); sx.drawImage(c, 0, 0, smw, smh);
     var small = sx.getImageData(0, 0, smw, smh);
     c.width = c.height = 0; sc.width = sc.height = 0; URL.revokeObjectURL(l.u); im.src = '';
-    return { buf: big.data.buffer, w: w, h: h, small: { data: small.data, w: smw, h: smh } };
+    T.push(performance.now());
+    return { buf: big.data.buffer, w: w, h: h, small: { data: small.data, w: smw, h: smh }, t: { orient: Math.round(T[1] - T[0]), exif: Math.round(T[2] - T[1]), load: Math.round(T[3] - T[2]), draw: Math.round(T[4] - T[3]), get: Math.round(T[5] - T[4]), small: Math.round(T[6] - T[5]) } };
   }
 
   /* ---------- worker pool ---------- */
@@ -354,7 +376,10 @@ function workerMain() {
       };
       w.onerror = function (e) { console.error('worker error', e && e.message); };
       workers.push(w);
-      callWorker(w, { type: 'warm' }, [], null).then(function (r) { if (r && r.hot) { S.hot = S.hot ? Math.min(S.hot, r.hot) : r.hot; S.cold = r.cold; } pump(); }).catch(function () {});
+      callWorker(w, { type: 'warm' }, [], null).then(function (r) {
+        if (r && r.jsHot) { var hot = r.impl === 'wasm' ? r.wasmHot : r.jsHot; if (!S.hot || hot < S.hot) { S.hot = hot; S.impl = r.impl; S.jsHot = r.jsHot; S.wasmHot = r.wasmHot; S.note = r.note; } S.cold = r.cold; }
+        pump();
+      }).catch(function () {});
     }
   }
   function callWorker(w, msg, transfer, onProg, onPreview) {
@@ -365,11 +390,14 @@ function workerMain() {
   // Working resolution: fewer pixels for more pages, and for slower phones. The warm-up run on a tiny page tells us
   // how fast this phone is. REF_HOT is that run on a fast desktop (14 ms). A page costs about 0.4 s there at 200 dpi, and
   // time scales with pixels, so a phone r times slower gets dpi = 200 * sqrt(6.25 / r) to keep a page near 2.5 s.
-  var REF_HOT = 14;
+  var REF = { js: { hot: 12, page: 0.40 }, wasm: { hot: 5.6, page: 0.27 } };   // warm-up ms and seconds per page at 200 dpi, on a fast desktop
   function workingDpi() {
     var n = S.pages.length, d = n <= 6 ? 200 : n <= 12 ? 170 : n <= 24 ? 145 : 120;
     if (lite) d = Math.min(d, 160);
-    if (S.hot) { var r = S.hot / REF_HOT; if (r > 6.25) d = Math.min(d, Math.max(110, Math.round(200 * Math.sqrt(6.25 / r)))); }
+    if (S.hot) {
+      var ref = REF[S.impl] || REF.js, predicted = ref.page * (S.hot / ref.hot);   // seconds for one page at 200 dpi on this phone
+      if (predicted > 2.5) d = Math.min(d, Math.max(110, Math.round(200 * Math.sqrt(2.5 / predicted))));
+    }
     return d;
   }  function pump() {
     if (!workers.length) return;
@@ -385,7 +413,7 @@ function workerMain() {
     pg.state = 'working'; w.busy = true; pg.frac = 0; pg.label = 'Reading the photo'; updateStatus();
     var t0 = performance.now(), tm = {};
     try {
-      var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * dpi * 1.25)); tm.decode = Math.round(performance.now() - t0);
+      var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * dpi * 1.25)); tm.decode = Math.round(performance.now() - t0); tm.d = d.t;
       var override = pg.quadOverride !== undefined, msg = { type: 'analyze', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: override ? pg.quadOverride : null, small: override ? null : d.small, dpi: dpi, opts: optsNow(), mode: pg.mode };
       var xfer = [d.buf]; if (!override) xfer.push(d.small.data.buffer);
       var res = await callWorker(w, msg, xfer, function (f, label) { pg.frac = f; pg.label = label; updateStatus(); }, function (pv) {
@@ -558,7 +586,7 @@ function workerMain() {
   function renderStrip() {
     var s = byId('strip'); s.innerHTML = '';
     S.pages.forEach(function (p, i) {
-      var d = document.createElement('div'); d.className = 'th'; var src = p.thumb || p.thumbSrc; if (src) d.style.backgroundImage = 'url(' + src + ')';
+      var d = document.createElement('div'); d.className = 'th'; var src = p.thumb || p.thumbSrc; if (src) d.style.backgroundImage = 'url(' + src + ')'; else { d.className = 'th num'; d.textContent = String(i + 1); }
       if (i === S.cur) d.style.outline = '3px solid #000'; if (p.state === 'error' || p.low) { var w = document.createElement('b'); w.textContent = '!'; d.appendChild(w); }
       d.onclick = function () { go(i); }; s.appendChild(d);
     });
@@ -716,11 +744,11 @@ function workerMain() {
 
   /* ---------- home and camera ---------- */
   var queue = [];   // photos waiting on the home screen
-  function addOne(blob) { var o = { blob: blob, thumbSrc: URL.createObjectURL(blob) }; queue.push(o); return o; }
+  function addOne(blob, thumb) { var o = { blob: blob, thumbSrc: thumb || '' }; queue.push(o); return o; }
   function addBlobs(files) { for (var i = 0; i < files.length; i++) addOne(files[i]); renderHome(); }
   function renderHome() {
     var box = byId('hThumbs'); box.innerHTML = '';
-    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; var x = document.createElement('b'); x.textContent = '×'; x.onclick = function () { URL.revokeObjectURL(o.thumbSrc); queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
+    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; else { d.className = 'th num'; d.textContent = String(S.pages.length + i + 1); } var x = document.createElement('b'); x.textContent = '×'; x.onclick = function () { queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
     var n = queue.length + S.pages.length;
     byId('hGo').disabled = !n; byId('hGo').textContent = n ? 'Review ' + pageWord(n) : 'Review pages';
     byId('hHint').hidden = n > 0; byId('hClear').hidden = !n; byId('hCam').textContent = n ? 'Take more photos' : 'Take photos';
@@ -739,7 +767,7 @@ function workerMain() {
       show('cam'); camCount();
     } catch (e) { byId('fCam').click(); }
   }
-  function camCount() { var n = queue.length; byId('cn').textContent = pageWord(n); var t = queue[n - 1]; byId('cthumb').style.backgroundImage = t ? 'url(' + t.thumbSrc + ')' : 'none'; }
+  function camCount() { var n = queue.length; byId('cn').textContent = pageWord(n); var t = queue[n - 1]; byId('cthumb').style.backgroundImage = t && t.thumbSrc ? 'url(' + t.thumbSrc + ')' : 'none'; }
   function closeCamera() { if (stream) { var tr = stream.getTracks(); for (var i = 0; i < tr.length; i++) tr[i].stop(); } stream = null; show('home'); renderHome(); }
   byId('hCam').onclick = openCamera;
   byId('cDone').onclick = function (e) { e.preventDefault(); closeCamera(); };
@@ -747,7 +775,9 @@ function workerMain() {
     var v = byId('cv'); if (!v.videoWidth) return;
     var c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
     var f = byId('flash'); f.style.opacity = '0.8'; setTimeout(function () { f.style.opacity = '0'; }, 90);
-    c.toBlob(function (b) { c.width = c.height = 0; if (b) { var o = addOne(b); camCount(); } }, 'image/jpeg', 0.92);
+    var tk = 120 / Math.max(c.width, c.height), tc = document.createElement('canvas'); tc.width = Math.round(c.width * tk); tc.height = Math.round(c.height * tk);
+    tc.getContext('2d').drawImage(c, 0, 0, tc.width, tc.height); var thumb = tc.toDataURL('image/jpeg', 0.6); tc.width = tc.height = 0;   // free: the frame is already decoded
+    c.toBlob(function (b) { c.width = c.height = 0; if (b) { addOne(b, thumb); camCount(); } }, 'image/jpeg', 0.92);
   };
   function startReview() {
     startWorkers();

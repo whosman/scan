@@ -18,6 +18,7 @@
   "type": "module",
   "devDependencies": {
     "acorn": "^8.19.0",
+    "assemblyscript": "^0.28.20",
     "caniuse-lite": "^1.0.30001816",
     "fflate": "^0.8.3",
     "pdf-lib": "^1.17.1",

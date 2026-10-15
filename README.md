@@ -30,6 +30,8 @@ The first version took about 5 seconds a page on a desktop, and over a minute on
 - The saved analysis is 3 bytes a pixel, so many pages fit in an old phone's memory.
 - Workers start and warm up while you are still taking photos. Page finding runs in the worker.
 - Progress moves at every stage. The bar never sits still.
+- **The heavy loops are WebAssembly** (`assembly/kernels.ts`, compiled with AssemblyScript, 4.7 KB). A JavaScript engine starts slow and speeds up as it learns the code. That hurts most on an old phone, and most on the first page. WebAssembly runs at a steady speed from the first call. At startup each worker checks the WebAssembly against the JavaScript on a test page, and times both. It uses WebAssembly only if the two agree and it is faster. If WebAssembly is missing or fails at any point, the app falls back to JavaScript. `node build.mjs` with `NO_WASM=1` or `BAD_WASM=1` builds those fallback cases, and the tests pass on both.
+- Camera shots make their thumbnail from the frame already in hand. Files you pick get numbered boxes until processed, so no photo is decoded twice.
 
 The cleaning keeps what matters. Against the first version it matches the ink closely, and it now removes ruled and grid paper completely. A stress test (`test/stress.mjs`) covers shadows, colour casts, dim light, noise, glare and ruled paper.
 
@@ -47,12 +49,12 @@ The floor is Safari 12, which runs on the iPhone 5s and 6. The design follows fr
 
 `node test/compat.mjs` parses the app as ES2018 and fails on any newer API or CSS.
 
-**It tunes itself to the phone.** At start, each worker times a tiny cleaning job. A phone more than about six times slower than a fast desktop gets a lower working resolution, so a page stays near 2.5 seconds. Long scans lower it further. The Sharper button re-reads the photo at full size when you save.
+**It tunes itself to the phone.** At start, each worker times a tiny cleaning job, in JavaScript and in WebAssembly, and keeps the faster. It then predicts the time for one page. If that is over about 2.5 seconds, it lowers the working resolution to fit. Long scans lower it further. The Sharper button re-reads the photo at full size when you save.
 
 **What I measured for slow phones.** I have no old iPhone, so I used stand-ins:
 
-- Real WebKit, Safari's engine, on a 320 by 568 touch screen (`test/webkit.mjs`). Taps, double-tap zoom, sliders and saving all pass. A page appears in about 2.4 seconds, and the straightened colour preview shows sooner.
-- Node with the optimizing compiler switched off, which is a slow-CPU stand-in (`test/slow-bench.mjs`). One page at 200 dpi takes 5.3 seconds. That is 18 times slower than normal. At the lower resolution a slow phone picks, it takes 2.0 to 3.4 seconds. A real iPhone keeps Safari's optimizer on, so it lands between the two.
+- Real WebKit, Safari's engine, on a 320 by 568 touch screen (`test/webkit.mjs`). Taps, double-tap zoom, sliders and saving all pass. WebKit's JavaScript was the slower engine here. The worker took 1.0 to 1.7 seconds a page in JavaScript and 0.4 to 0.8 seconds in WebAssembly. The first page appears in about 1.8 seconds.
+- Node with the JavaScript optimizer off and WebAssembly held to its baseline tier, a stand-in for a cold, slow engine (`node --no-opt --liftoff-only --no-wasm-tier-up test/wasm-check.mjs`). One page at 200 dpi takes **6.1 seconds in JavaScript and 0.85 seconds in WebAssembly**. The app picks WebAssembly. WebAssembly and JavaScript agree to within one gray level on 0.02 percent of ink pixels.
 - The first version took over a minute for one page on a phone, with no progress shown.
 
 ## Host it yourself
@@ -74,6 +76,8 @@ node test/stress.mjs                   lighting, noise and ruling stress test
 node test/e2e6.mjs                     every feature, on a 320x568 screen with a fake camera
 node test/e2e6.mjs lite                the same, as a two-core phone
 node test/webkit.mjs                   the app in WebKit (Safari's engine), with touch
+node test/wasm-check.mjs               WebAssembly against JavaScript on real photos: agreement and speed
+node test/impl-compare.mjs            which implementation each engine picks, with end-to-end times
 node test/slow-bench.mjs               cost per page; run with node --no-opt for a slow-CPU stand-in
 node test/pwa.mjs                      Home Screen app and offline cache
 node test/live.mjs                     the published site

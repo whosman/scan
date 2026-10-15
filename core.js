@@ -400,6 +400,40 @@ export function warpPreview(src, sw, sh, geom, maxW) {
   return { data: out, w: ow, h: oh };
 }
 
+// ---- pieces shared by the JavaScript and WebAssembly paths, so they cannot drift apart ----
+const STAT_NB = 4400, STAT_LO = -0.6, STAT_RES = 2000;   // statistics histogram: 1/RES per bin
+function noiseFromHist(nb, nCnt) {
+  let acc = 0, mb = 0; for (; mb < 1200; mb++) { acc += nb[mb]; if (acc >= nCnt / 2) break; }
+  const noise0 = (mb / 4000) * 1.4826 / 1.118;
+  return { noise0, nk: Math.min(5, Math.max(1, noise0 / 0.025)) };
+}
+function statsFromHist(hist, total, p) {
+  const NB = STAT_NB, LO = STAT_LO, RES = STAT_RES;
+  let c2 = 0, medBin = 0; for (; medBin < NB; medBin++) { c2 += hist[medBin]; if (c2 >= total / 2) break; }
+  const med = LO + (medBin + 0.5) / RES;
+  const dh = new Uint32Array(2200); c2 = 0;
+  for (let b = 0; b < NB; b++) { if (!hist[b]) continue; const dv = Math.abs(LO + (b + 0.5) / RES - med); let k = (dv * RES) | 0; if (k > 2199) k = 2199; dh[k] += hist[b]; }
+  let mad = 0; c2 = 0; for (; mad < 2200; mad++) { c2 += dh[mad]; if (c2 >= total / 2) break; }
+  const sigma = Math.max(1e-4, 1.4826 * (mad + 0.5) / RES);
+  const tStrong = med + p.strongK * sigma;
+  let sBin = Math.max(0, Math.floor((tStrong - LO) * RES)), strongTotal = 0;
+  for (let b = sBin; b < NB; b++) strongTotal += hist[b];
+  let dRefRaw = 0.3;
+  if (strongTotal > 0) { const target = strongTotal * p.inkRef; let a2 = 0; for (let b = sBin; b < NB; b++) { a2 += hist[b]; if (a2 >= target) { dRefRaw = LO + (b + 0.5) / RES - med; break; } } }
+  return { med, sigma, tStrong, dRefRaw };
+}
+function buildMaps(strongC, chromaF, cw, ch, scale, p) {
+  const rc = Math.max(1, Math.round(p.gateRadius * scale * 0.5 / 4));
+  const gate = gaussBlur(maxFilter(strongC, cw, ch, rc), cw, ch, Math.max(0.5, p.gateRadius * scale * 0.35 / 4));
+  const gateQ = new Uint8Array(cw * ch); for (let i = 0; i < gateQ.length; i++) { const v = gate[i] * 1.6; gateQ[i] = v >= 1 ? 255 : (v * 255) | 0; }
+  const chromaB = gaussBlur(chromaF, cw, ch, 0.5), chromaQ = new Uint8Array(cw * ch);
+  for (let i = 0; i < chromaQ.length; i++) { const v = (chromaB[i] * 255 + 0.5) | 0; chromaQ[i] = v > 255 ? 255 : v < 0 ? 0 : v; }
+  // the page's own colour noise: its median. Only colour above this counts as ruling.
+  const ch256 = new Uint32Array(256); for (let i = 0; i < chromaQ.length; i++) ch256[chromaQ[i]]++;
+  let chromaBase = 0; { let acc = 0; for (let b = 0; b < 256; b++) { acc += ch256[b]; if (acc >= chromaQ.length / 2) { chromaBase = b; break; } } }
+  return { gateQ, chromaQ, chromaBase };
+}
+
 // ---------- stage 1: straighten, flatten the light, measure the ink ----------
 // src: RGBA bytes (Uint8Array/Uint8ClampedArray) of size sw*sh*4.
 // Returns a compact analysis that shape() turns into pixels. `prog(frac, label)` is called often.
@@ -514,9 +548,7 @@ export function analyze(src, sw, sh, geom, opts, prog, release) {
   // -- noise level from the Laplacian on a sparse sample (median absolute deviation) --
   const nb = new Uint32Array(1200); let nCnt = 0;
   for (let y = 1; y < H - 1; y += 3) { const o = y * W; for (let x = 1; x < W - 1; x += 3) { const i = o + x; let v = L[i] - 0.25 * (L[i - 1] + L[i + 1] + L[i - W] + L[i + W]); if (v < 0) v = -v; let b = (v * 4000) | 0; if (b > 1199) b = 1199; nb[b]++; nCnt++; } }
-  let acc = 0, mb = 0; for (; mb < 1200; mb++) { acc += nb[mb]; if (acc >= nCnt / 2) break; }
-  const noise0 = (mb / 4000) * 1.4826 / 1.118 * 1.0;
-  const nk = Math.min(5, Math.max(1, noise0 / 0.025));
+  const { noise0, nk } = noiseFromHist(nb, nCnt);
 
   // -- denoise, remember the un-sharpened density (it tells faint ruling from pencil), then undo camera blur --
   const tmp = new Float32Array(n), col = new Float32Array(W);
@@ -538,20 +570,9 @@ export function analyze(src, sw, sh, geom, opts, prog, release) {
 
   // -- statistics on a sparse sample, by histogram --
   const edge = Math.round(p.edgeTrim * scale);
-  const NB = 4400, LO = -0.6, RES = 2000;   // 1/RES per bin
-  const hist = new Uint32Array(NB); let total = 0;
-  for (let y = edge; y < H - edge; y += 3) { const o = y * W; for (let x = edge; x < W - edge; x += 3) { let b = ((L[o + x] - LO) * RES) | 0; if (b < 0) b = 0; else if (b >= NB) b = NB - 1; hist[b]++; total++; } }
-  let c2 = 0, medBin = 0; for (; medBin < NB; medBin++) { c2 += hist[medBin]; if (c2 >= total / 2) break; }
-  const med = LO + (medBin + 0.5) / RES;
-  const dh = new Uint32Array(2200); c2 = 0;
-  for (let b = 0; b < NB; b++) { if (!hist[b]) continue; const dv = Math.abs(LO + (b + 0.5) / RES - med); let k = (dv * RES) | 0; if (k > 2199) k = 2199; dh[k] += hist[b]; }
-  let mad = 0; c2 = 0; for (; mad < 2200; mad++) { c2 += dh[mad]; if (c2 >= total / 2) break; }
-  const sigma = Math.max(1e-4, 1.4826 * (mad + 0.5) / RES);
-  const tStrong = med + p.strongK * sigma;
-  let sBin = Math.max(0, Math.floor((tStrong - LO) * RES)), strongTotal = 0;
-  for (let b = sBin; b < NB; b++) strongTotal += hist[b];
-  let dRefRaw = 0.3;
-  if (strongTotal > 0) { const target = strongTotal * p.inkRef; let a2 = 0; for (let b = sBin; b < NB; b++) { a2 += hist[b]; if (a2 >= target) { dRefRaw = LO + (b + 0.5) / RES - med; break; } } }
+  const hist = new Uint32Array(STAT_NB); let total = 0;
+  for (let y = edge; y < H - edge; y += 3) { const o = y * W; for (let x = edge; x < W - edge; x += 3) { let b = ((L[o + x] - STAT_LO) * STAT_RES) | 0; if (b < 0) b = 0; else if (b >= STAT_NB) b = STAT_NB - 1; hist[b]++; total++; } }
+  const { med, sigma, tStrong, dRefRaw } = statsFromHist(hist, total, p);
 
   // -- gate: where is there strong ink? computed on a 1/4-resolution grid --
   const gcw = cw, gch = ch, strongC = new Float32Array(gcw * gch), cm = new Float32Array(gcw);
@@ -560,18 +581,105 @@ export function analyze(src, sw, sh, geom, opts, prog, release) {
     if ((y & 1) === 0) { const o = y * W; for (let x = 0; x < W; x += 2) { const v = L[o + x]; const c = x >> 2; if (v > cm[c]) cm[c] = v; } }
     if ((y & 3) === 3 || y === H - 1) { const base = (y >> 2) * gcw; for (let c = 0; c < gcw; c++) strongC[base + c] = cm[c] > tStrong ? 1 : 0; }
   }
-  const rc = Math.max(1, Math.round(p.gateRadius * scale * 0.5 / 4));
-  let gate = gaussBlur(maxFilter(strongC, gcw, gch, rc), gcw, gch, Math.max(0.5, p.gateRadius * scale * 0.35 / 4));
-  const gateQ = new Uint8Array(gcw * gch); for (let i = 0; i < gateQ.length; i++) { const v = gate[i] * 1.6; gateQ[i] = v >= 1 ? 255 : (v * 255) | 0; }
-  const chromaB = gaussBlur(chromaF, cw, ch, 0.5), chromaQ = new Uint8Array(cw * ch);
-  for (let i = 0; i < chromaQ.length; i++) { const v = (chromaB[i] * 255 + 0.5) | 0; chromaQ[i] = v > 255 ? 255 : v < 0 ? 0 : v; }
-  // the page's own colour noise: its median. Only colour above this counts as ruling.
-  const ch256 = new Uint32Array(256); for (let i = 0; i < chromaQ.length; i++) ch256[chromaQ[i]]++;
-  let chromaBase = 0; { let acc = 0; for (let b = 0; b < 256; b++) { acc += ch256[b]; if (acc >= chromaQ.length / 2) { chromaBase = b; break; } } }
+  const { gateQ, chromaQ, chromaBase } = buildMaps(strongC, chromaF, cw, ch, scale, p);
 
   prog(1, 'Done');
   return { w: W, h: H, dpi, scale, densQ, dens0, gateQ, chromaQ, chromaBase, cw, ch, edge,
     stats: { med, sigma, tStrong, dRefRaw, noise0, noiseK: nk, satFrac: satN ? sat / satN : 0, paperLuma } };
+}
+
+// ---------- WebAssembly path ----------
+// The same pipeline with the heavy loops in WebAssembly (assembly/kernels.ts). WebAssembly runs at a steady speed
+// from the first call, where a JavaScript engine has to warm up first, which matters most on an old phone.
+export function initWasm(bytes) {
+  try {
+    if (typeof WebAssembly !== 'object') return null;
+    const mem = new WebAssembly.Memory({ initial: 64, maximum: 4096 });
+    const inst = new WebAssembly.Instance(new WebAssembly.Module(bytes), { env: { memory: mem, abort: function () { throw new Error('wasm abort'); } } });
+    const K = { mem, x: inst.exports, LIN: 64, COUNTS: 2048 };
+    new Float32Array(mem.buffer, K.LIN, 256).set(SRGB_LIN);
+    return K;
+  } catch (e) { return null; }
+}
+export function wasmBytesFromBase64(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function wGauss(K, a, tmp, w, h, sigma, colP, step) {
+  if (sigma < 0.3) return;
+  if (sigma < 0.9) { const e = Math.exp(-1 / (2 * sigma * sigma)), s = 1 + 2 * e; K.x.blur3(a, tmp, w, h, 1 / s, e / s); if (step) step(1, 1); return; }
+  const r = boxRadii(sigma, 3); K.x.boxCascade(a, tmp, w, h, r[0] | 0, r[1] | 0, r[2] | 0, colP); if (step) step(3, 3);
+}
+export function analyzeW(K, src, sw, sh, geom, opts, prog, release) {
+  prog = prog || noop;
+  const p = Object.assign({}, DEFAULTS, opts || {});
+  const W = geom.w, H = geom.h, n = W * H, dpi = geom.dpi, scale = dpi / 300;
+  let s8 = src instanceof Uint8Array ? src : new Uint8Array(src.buffer, src.byteOffset, src.length);
+  const quad = geom.inset ? insetQuad(geom.quad, geom.inset) : geom.quad;
+  const pc = paperColour(s8, sw, sh, geom.quad);
+  const wt = pc.map((v) => Math.pow(Math.max(v, 8), 1.5)); const wsum = wt[0] + wt[1] + wt[2];
+  const kR = SRGB_LIN[pc[0] | 0] || 1e-3, kG = SRGB_LIN[pc[1] | 0] || 1e-3, kB = SRGB_LIN[pc[2] | 0] || 1e-3;
+  const cR = wt[0] / wsum / kR, cG = wt[1] / wsum / kG, cB = wt[2] / wsum / kB, iR = 1 / kR, iG = 1 / kG, iB = 1 / kB;
+  const paperLuma = 0.3 * pc[0] + 0.55 * pc[1] + 0.15 * pc[2];
+  const cw = (W + 3) >> 2, ch = (H + 3) >> 2, sw2 = (sw + 1) >> 1, sh2 = (sh + 1) >> 1;
+  const BS = Math.max(10, Math.round(16 * scale)), gw = Math.ceil(W / BS), gh = Math.ceil(H / BS);
+  // lay everything out in one linear memory
+  let off = 4096; const alloc = (b) => { const o = (off + 15) & ~15; off = o + b; return o; };
+  const R0 = alloc(sw * sh * 4), R1 = alloc(sw * sh * 2), Lp = alloc(n * 4);
+  const tmpP = sw * sh >= n ? R0 : alloc(n * 4), scratchP = alloc(n * 4), dens0P = alloc(n), densQP = alloc(n * 2);
+  const chromaSP = alloc(sw2 * sh2 * 4), chromaFP = alloc(cw * ch * 4), gridP = alloc(gw * gh * 4), topP = alloc(BS * BS * 4), g2P = alloc(gw * gh * 4);
+  const xaP = alloc(W * 4), txP = alloc(W * 4), rowInvP = alloc(gw * 4), nbP = alloc(1200 * 4), colP = alloc(Math.max(W, cw) * 4 + 64), histP = alloc(STAT_NB * 4), strongP = alloc(cw * ch * 4), cmP = alloc(cw * 4);
+  const have = K.mem.buffer.byteLength, need = off + 65536;
+  if (need > have) K.mem.grow(Math.ceil((need - have) / 65536));
+  const M = () => K.mem.buffer;
+  new Uint8Array(M(), R0, sw * sh * 4).set(s8);   // the photo now also lives in wasm memory
+  new Float32Array(M(), chromaSP, sw2 * sh2).fill(0); new Uint32Array(M(), nbP, 1200).fill(0); new Uint32Array(M(), histP, STAT_NB).fill(0);
+  prog(0.02, 'Reading the photo');
+  K.x.prepass(R0, sw, sh, R1, chromaSP, K.LIN, cR, cG, cB, iR, iG, iB, K.COUNTS);
+  const cnt = new Int32Array(M(), K.COUNTS, 2), sat = cnt[0], satN = cnt[1];
+  prog(0.08, 'Straightening the page');
+  const Hm = inverseMap(quad, W, H);
+  K.x.warp(R1, sw, sh, Lp, W, H, Hm[0], Hm[1], Hm[2], Hm[3], Hm[4], Hm[5], Hm[6], Hm[7], chromaSP, sw2, sh2, chromaFP, cw);
+  s8 = null; if (release) release();   // the photo is no longer needed
+  prog(0.30, 'Lifting the shadows');
+  K.x.paperGrid(Lp, W, H, BS, gridP, topP, gw, gh);
+  let g2 = maxFilter(new Float32Array(M(), gridP, gw * gh).slice(), gw, gh, 1); g2 = gaussBlur(g2, gw, gh, 1.4);
+  new Float32Array(M(), g2P, gw * gh).set(g2);
+  K.x.density(Lp, W, H, g2P, gw, gh, BS, xaP, txP, rowInvP);
+  prog(0.42, 'Measuring the noise');
+  const nCnt = K.x.noiseHist(Lp, W, H, nbP);
+  const { noise0, nk } = noiseFromHist(new Uint32Array(M(), nbP, 1200).slice(), nCnt);
+  const sig1 = p.denoise * scale * nk;
+  wGauss(K, Lp, tmpP, W, H, sig1, colP, (i, m) => prog(0.42 + 0.14 * (i / m), 'Cleaning the ink'));
+  const deb = p.deblur / Math.sqrt(nk), doDeblur = deb > 0.05;
+  K.x.dens0Copy(Lp, tmpP, dens0P, n, doDeblur ? 1 : 0);
+  if (doDeblur) wGauss(K, tmpP, scratchP, W, H, p.deblurSigma * scale * Math.min(1.6, Math.sqrt(nk)), colP, (i, m) => prog(0.56 + 0.2 * (i / m), 'Sharpening the strokes'));
+  K.x.combine(Lp, tmpP, densQP, n, deb, doDeblur ? 1 : 0);
+  prog(0.78, 'Measuring the ink');
+  const edge = Math.round(p.edgeTrim * scale);
+  const total = K.x.statsHist(Lp, W, H, edge, histP, STAT_NB, STAT_LO, STAT_RES);
+  const { med, sigma, tStrong, dRefRaw } = statsFromHist(new Uint32Array(M(), histP, STAT_NB).slice(), total, p);
+  K.x.gateMax(Lp, W, H, cmP, strongP, cw, tStrong);
+  const { gateQ, chromaQ, chromaBase } = buildMaps(new Float32Array(M(), strongP, cw * ch).slice(), new Float32Array(M(), chromaFP, cw * ch).slice(), cw, ch, scale, p);
+  const densQ = new Int16Array(M(), densQP, n).slice(), dens0 = new Uint8Array(M(), dens0P, n).slice();
+  prog(1, 'Done');
+  return { w: W, h: H, dpi, scale, densQ, dens0, gateQ, chromaQ, chromaBase, cw, ch, edge,
+    stats: { med, sigma, tStrong, dRefRaw, noise0, noiseK: nk, satFrac: satN ? sat / satN : 0, paperLuma } };
+}
+// A small synthetic page, used to warm up, to check WebAssembly against JavaScript, and to time both.
+export function syntheticPage(WW, WH) {
+  const wb = new Uint8Array(WW * WH * 4);
+  for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) { const o = (y * WW + x) * 4; let v = 205 - (x / WW) * 30 + ((x * 7 + y * 13) % 9); if (y % 40 === 20 || (x > 60 && x < 64 && y > 50 && y < 300)) v = 90; wb[o] = v; wb[o + 1] = v; wb[o + 2] = v + 6; wb[o + 3] = 255; }
+  return wb;
+}
+// true when WebAssembly gives the same answer as JavaScript. Also returns each one's hot time in ms.
+export function checkWasm(K, now) {
+  const WW = 300, WH = 400, geom = pageGeometry(WW, WH, null, 100, {});
+  const a = analyze(syntheticPage(WW, WH), WW, WH, geom, {}, null), b = analyzeW(K, syntheticPage(WW, WH), WW, WH, geom, {}, null);
+  let worst = 0; for (let i = 0; i < a.densQ.length; i++) { const d = Math.abs(a.densQ[i] - b.densQ[i]); if (d > worst) worst = d; }
+  const close = (x, y) => Math.abs(x - y) <= 0.02 * Math.max(1e-3, Math.abs(x), Math.abs(y)) + 1e-3;
+  const same = a.w === b.w && a.h === b.h && worst <= 60 && close(a.stats.med, b.stats.med) && close(a.stats.sigma, b.stats.sigma) && close(a.stats.tStrong, b.stats.tStrong) && a.gateQ.length === b.gateQ.length;
+  const time = (f) => { const t0 = now(); for (let i = 0; i < 3; i++) f(); return (now() - t0) / 3; };
+  const jsMs = time(() => analyze(syntheticPage(WW, WH), WW, WH, geom, {}, null));
+  const wasmMs = time(() => analyzeW(K, syntheticPage(WW, WH), WW, WH, geom, {}, null));
+  return { ok: same, worst, jsMs, wasmMs };
 }
 
 // ---------- stage 2: turn density into black ink on white. Fast enough to run on every slider tick. ----------
