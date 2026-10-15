@@ -13,943 +13,764 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#ffffff">
 <style>
-:root{
-  --ink:#0b0b0c; --mute:#6b6e73; --faint:#9a9da2; --line:#e6e6e8; --line2:#cfd0d3; --paper:#ffffff; --stage:#f2f2f3; --press:#f0f0f1; --danger:#b3261e;
-  --serif:ui-serif,"New York","Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
-  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);font:15px/1.45 var(--sans);-webkit-font-smoothing:antialiased;overscroll-behavior:none}
-body{padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+/* Plain document styling. Georgia body, native controls, no radii, no shadows, no gradients.
+   Written for Safari 12 (iPhone 5s and 6): no flex gap, no inset, no dvh, no pointer events. */
+html{-webkit-text-size-adjust:100%;background:#fff;touch-action:manipulation}
+body{margin:0;background:#fff;color:#000;font:17px/1.45 Georgia,"Times New Roman",Times,serif;position:relative;overflow:hidden;-webkit-tap-highlight-color:rgba(0,0,0,.08);-webkit-touch-callout:none}
 [hidden]{display:none!important}
-button,input,label{font:inherit;color:inherit}
-button{cursor:pointer}
-svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-
-/* ---------- structure ---------- */
-.screen{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--paper);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-.bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:6px 8px;min-height:52px;border-bottom:1px solid var(--line);background:var(--paper)}
-.bar h1{margin:0;font:600 17px/1.2 var(--serif);text-align:center;letter-spacing:.1px}
-.bar .sub{font-size:12px;color:var(--mute);text-align:center}
-.bar .l{justify-self:start;display:flex;align-items:center}
-.bar .r{justify-self:end;display:flex;align-items:center}
-.bar.left{grid-template-columns:auto 1fr auto}
-.bar.left h1{text-align:left}
-.link{background:none;border:0;padding:10px 10px;color:var(--ink);font-size:15px;min-height:44px}
-.link.mute{color:var(--mute)}
-.link:active{opacity:.55}
-.iconbtn{width:44px;height:44px;border:0;background:none;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;padding:0}
-.iconbtn:active{background:var(--press)}
-.iconbtn[disabled]{opacity:.25;pointer-events:none}
-
-/* ---------- buttons ---------- */
-.btn{appearance:none;-webkit-appearance:none;border:1px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:8px;padding:0 16px;min-height:46px;font-weight:550;letter-spacing:.1px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-.btn:active{background:var(--press)}
-.btn.primary{background:var(--ink);color:#fff}
-.btn.primary:active{background:#2b2b2d}
-.btn.quiet{border-color:var(--line2)}
-.btn.danger{color:var(--danger);border-color:var(--danger)}
-.btn[disabled]{opacity:.3;pointer-events:none}
-
-/* ---------- review ---------- */
-.banner{display:flex;flex-direction:column;border-bottom:1px solid var(--line);background:var(--paper)}
-.banner:empty{display:none}
-.chip{display:flex;gap:10px;align-items:center;padding:9px 14px;font-size:13px;line-height:1.35;color:var(--ink);border-top:1px solid var(--line)}
-.chip:first-child{border-top:0}
-.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ink);flex:0 0 auto}
-.chip.bad{color:var(--danger)}
-.chip.bad::before{background:var(--danger)}
-.chip button{margin-left:auto;background:none;border:0;color:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px;padding:6px 2px;min-height:32px}
-.stage{position:relative;flex:1;min-height:0;background:var(--stage);overflow:hidden;touch-action:none}
-.pagewrap{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
-.pagewrap canvas,.pagewrap img{display:block;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08),0 6px 22px rgba(0,0,0,.10)}
-.pagewrap img{position:absolute;left:0;top:0}
-.floatbar{position:absolute;left:12px;bottom:12px;z-index:3}
-.floatbar .btn{min-height:36px;padding:0 12px;font-size:13px;border-color:var(--line2);background:rgba(255,255,255,.94)}
-.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(255,255,255,.94);z-index:5;padding:30px;text-align:center}
-.overlay .pill{font:italic 400 16px/1.3 var(--serif);color:var(--ink)}
-.overlay .bar2{width:56%;max-width:260px}
-.bar2{height:2px;background:var(--line);overflow:hidden}
-.bar2 i{display:block;height:100%;width:0;background:var(--ink);transition:width .2s}
-.panel{background:var(--paper);border-top:1px solid var(--line);padding:10px 14px 8px;display:flex;flex-direction:column;gap:12px;max-height:46vh;overflow-y:auto}
-.thumbs{display:flex;gap:8px;overflow-x:auto;padding:2px 1px;scrollbar-width:none}
-.thumbs::-webkit-scrollbar{display:none}
-.th{flex:0 0 auto;width:40px;height:52px;border:1px solid var(--line2);background:#fff center/cover no-repeat;position:relative;border-radius:2px}
-.th.sel{outline:2px solid var(--ink);outline-offset:1px;border-color:var(--ink)}
-.th .n{position:absolute;left:0;bottom:0;font-size:10px;font-weight:600;color:var(--ink);background:rgba(255,255,255,.92);padding:0 4px;border-top-right-radius:3px;line-height:14px}
-.th .w{position:absolute;right:2px;top:2px;width:7px;height:7px;border-radius:50%;background:var(--danger)}
-.tools{display:grid;grid-template-columns:repeat(6,1fr);gap:2px}
-.tool{background:none;border:0;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0 5px;font-size:11px;color:var(--ink);min-height:50px}
-.tool svg{width:21px;height:21px}
-.tool:active{background:var(--press)}
-.tool[disabled]{opacity:.25;pointer-events:none}
-.tool.danger{color:var(--danger)}
-.row{display:flex;align-items:center;gap:10px}
-.seg{display:flex;border:1px solid var(--ink);border-radius:8px;overflow:hidden;flex:1}
-.seg button{flex:1;border:0;border-left:1px solid var(--ink);background:var(--paper);padding:0 6px;min-height:40px;font-weight:550;font-size:14px}
-.seg button:first-child{border-left:0}
-.seg button.on{background:var(--ink);color:#fff}
-.ctl{display:grid;grid-template-columns:120px 1fr 40px;align-items:center;gap:8px;font-size:14px}
-.ctl label{color:var(--mute)}
-.ctl output{text-align:right;color:var(--mute);font:12px var(--mono)}
-input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;margin:0}
-input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--ink)}
-input[type=range]::-moz-range-track{height:2px;background:var(--ink)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ink);margin-top:-9px;border:4px solid #fff;box-shadow:0 0 0 1px var(--ink)}
-input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--ink);border:4px solid #fff;box-shadow:0 0 0 1px var(--ink)}
-.check{display:flex;gap:10px;align-items:center;font-size:14px;color:var(--ink);min-height:30px}
-input[type=checkbox]{-webkit-appearance:none;appearance:none;width:20px;height:20px;border:1.5px solid var(--ink);border-radius:4px;margin:0;display:inline-grid;place-content:center;background:#fff;flex:0 0 auto}
-input[type=checkbox]:checked{background:var(--ink)}
-input[type=checkbox]:checked::after{content:"";width:9px;height:4.5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
-.action{display:flex;gap:10px;padding:10px 14px 12px;border-top:1px solid var(--line);background:var(--paper);align-items:stretch}
-.action .btn.primary{flex:1;min-width:0;min-height:54px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;line-height:1.2;padding:8px 16px;text-align:left}
-.action .btn.primary span,.action .btn.primary small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.action .btn.primary span{font-size:16px}
-.action .btn.primary small{font-weight:400;opacity:.72;font-size:12.5px;font-family:var(--mono)}
-.action .btn.quiet{min-height:54px}
-
-/* ---------- forms and lists ---------- */
-.scroll{flex:1;min-height:0;overflow:auto;padding:20px 18px 28px;display:flex;flex-direction:column;gap:26px}
-.field{display:flex;flex-direction:column;gap:8px}
-.field>label,.lbl{font-size:12px;color:var(--mute);letter-spacing:.02em}
-.hint{font-size:12.5px;color:var(--mute);line-height:1.4}
-input[type=text],input[type=search]{width:100%;font:inherit;font-size:16px;padding:0 12px;min-height:46px;border:1px solid var(--line2);border-radius:8px;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none}
-input[type=text]:focus,input[type=search]:focus{outline:none;border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
-input::placeholder{color:var(--faint)}
-.suggest{display:inline-flex;align-items:center;background:none;border:0;padding:4px 0;color:var(--ink);font-size:13px;text-decoration:underline;text-underline-offset:3px}
-.list{border-top:1px solid var(--line)}
-.item{display:flex;align-items:center;gap:12px;padding:13px 2px;border-bottom:1px solid var(--line);cursor:pointer;min-height:56px}
-.item:active{background:var(--press)}
-.item .t{flex:1;min-width:0}
-.item .t b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.item .t span{font-size:12px;color:var(--mute)}
-.item.sel .t b{font-weight:650}
-.tick{opacity:0;width:20px;height:20px}
-.item.sel .tick{opacity:1}
-.empty{padding:34px 12px;text-align:center;color:var(--mute);font-size:14px}
-.foot{padding:10px 14px 12px;border-top:1px solid var(--line);background:var(--paper);display:flex;gap:10px;flex-wrap:wrap}
-.foot .btn{flex:1 1 40%;min-height:50px}
-
-/* ---------- verification ledger ---------- */
-.steps{display:flex;flex-direction:column;border-top:1px solid var(--line)}
-.step{display:flex;gap:14px;align-items:flex-start;padding:14px 2px;border-bottom:1px solid var(--line)}
-.step .dot{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line2);flex:0 0 auto;margin-top:1px;display:flex;align-items:center;justify-content:center;color:#fff}
-.step.run .dot{border-color:var(--ink);border-top-color:transparent;animation:sp .9s linear infinite}
-.step.ok .dot{background:var(--ink);border-color:var(--ink)}
-.step.bad .dot{background:var(--danger);border-color:var(--danger)}
-.step .dot svg{width:13px;height:13px;stroke-width:2.6}
-.step b{font-weight:550;display:block}
-.step span{font-size:13px;color:var(--mute)}
-.step.bad span{color:var(--danger)}
-@keyframes sp{to{transform:rotate(360deg)}}
-.result{padding:4px 0 22px;display:flex;flex-direction:column;gap:10px;border-top:3px solid var(--ink)}
-.result.bad{border-top-color:var(--danger)}
-.result .big{width:34px;height:34px;stroke-width:1.6;margin-top:12px}
-.result.bad .big{color:var(--danger)}
-.result h2{margin:2px 0 0;font:600 30px/1.1 var(--serif);letter-spacing:-.2px}
-.result.bad h2{color:var(--danger)}
-.result p{margin:0;font-size:15px;color:var(--ink)}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;font-size:13.5px;margin:10px 0 0;padding-top:14px;border-top:1px solid var(--line)}
-.kv span:nth-child(odd){color:var(--mute)}
-.mono{font-family:var(--mono);font-size:12px;word-break:break-all}
-
-/* ---------- misc ---------- */
-.modal{position:fixed;inset:0;background:var(--paper);z-index:20;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-#cropStage{flex:1;position:relative;touch-action:none;min-height:0;background:var(--stage)}
-#cropStage canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
-.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:40;max-width:90vw}
-.thumbsrow{display:flex;gap:8px;flex-wrap:wrap}
-.lt{width:52px;height:68px;border:1px solid var(--line2);background:#fff center/cover no-repeat;border-radius:2px}
-.filebtn{flex:0 0 auto;text-align:center;cursor:pointer}
-.wordmark{font:600 22px/1 var(--serif);letter-spacing:-.2px;padding:14px 18px 6px}
-.lt{position:relative;width:76px;height:100px}
-.lx{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(255,255,255,.96);box-shadow:0 0 0 1px var(--line2);display:flex;align-items:center;justify-content:center;padding:0}
-.lx svg{width:12px;height:12px;stroke-width:2}
-.hero{min-height:56px;font-size:17px}
-.home-hint{color:var(--mute);font-size:14px;line-height:1.5;padding:4px 0}
-#camStage{flex:1;min-height:0;position:relative;background:#000;overflow:hidden}
-#camVideo{width:100%;height:100%;object-fit:contain;display:block}
-#camFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .3s}
-.camfoot{display:flex;align-items:center;justify-content:space-between;padding:14px 28px 18px;background:#fff;border-top:1px solid var(--line)}
-.camthumb{width:52px;height:52px;border:1px solid var(--line2);border-radius:6px;background:#fff center/cover no-repeat}
-.shutter{width:70px;height:70px;border-radius:50%;border:2px solid var(--ink);background:#fff;padding:5px}
-.shutter i{display:block;width:100%;height:100%;border-radius:50%;background:var(--ink);transition:transform .08s}
-.shutter:active i{transform:scale(.88)}
+h1{font-size:24px;line-height:1.2;margin:0 0 4px;font-weight:bold}
+h2{font-size:18px;line-height:1.25;margin:0 0 6px;font-weight:bold}
+p{margin:0 0 12px}
+hr{border:0;border-top:1px solid #000;margin:16px 0}
+small,.small{font-size:14px;color:#444}
+a,.lnk{color:#0b3d91;text-decoration:underline;background:none;border:0;padding:0;font:inherit;cursor:pointer}
+button{font:inherit;font-size:16px;color:#000;background:#fff;border:1px solid #000;border-radius:0;padding:0 14px;min-height:44px;margin:0;-webkit-appearance:none;appearance:none;cursor:pointer}
+button:active{background:#ddd}
+button.main{background:#000;color:#fff}
+button.main:active{background:#444}
+button.lnk{min-height:44px;padding:0 10px}
+button[disabled]{opacity:.35}
+input[type=text]{font:inherit;font-size:16px;color:#000;background:#fff;border:1px solid #000;border-radius:0;padding:0 8px;min-height:44px;width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none}
+input[type=range]{width:100%;margin:0;height:30px;accent-color:#000}
+label{display:block}
+.scr{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;background:#fff}
+.doc{padding:20px 16px 24px;padding-top:calc(20px + env(safe-area-inset-top));overflow-y:auto;-webkit-overflow-scrolling:touch}
+.doc>*{max-width:560px;margin-left:auto;margin-right:auto}
+.row{display:flex;align-items:center}
+.row>*+*{margin-left:8px}
+.grow{flex:1;min-width:0}
+.thumbs{display:flex;flex-wrap:wrap;margin:0 -4px}
+.th{width:64px;height:84px;margin:4px;border:1px solid #000;background:#fff center/cover no-repeat;position:relative;flex:0 0 auto}
+.th b{position:absolute;right:0;top:0;width:24px;height:24px;background:#fff;border-left:1px solid #000;border-bottom:1px solid #000;font:16px/22px Georgia,serif;text-align:center;color:#a40000;font-weight:normal}
+/* review: the page fills the screen; everything else floats on it and steps aside */
+#stage{position:absolute;left:0;top:0;right:0;bottom:0;background:#d8d8d8;overflow:hidden;touch-action:none}
+#pw{position:absolute;left:0;top:0;-webkit-transform-origin:0 0;transform-origin:0 0;will-change:transform}
+#pw canvas{display:block;background:#fff;position:absolute;left:0;top:0}
+.bar{position:absolute;left:0;right:0;background:rgba(255,255,255,.97);z-index:5;display:flex;align-items:center;-webkit-transition:opacity .15s;transition:opacity .15s}
+#top{top:0;border-bottom:1px solid #000;padding-top:env(safe-area-inset-top);min-height:48px}
+#bot{bottom:0;border-top:1px solid #000;padding-bottom:env(safe-area-inset-bottom);min-height:52px}
+.bar button{border:0;min-height:48px}
+#top #pos{flex:1;text-align:center;font-size:16px}
+#bot button.main{margin:4px 6px 4px auto;min-height:44px;max-width:56%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid #000}
+#bot .arrow{width:44px;padding:0;font-size:24px;line-height:44px}
+body.off .bar{opacity:0;pointer-events:none}
+#prog{position:absolute;left:0;top:0;height:3px;width:0;background:#000;z-index:9;-webkit-transition:width .12s;transition:width .12s}
+#status{position:absolute;left:8px;right:8px;text-align:center;font-size:14px;z-index:4;pointer-events:none;bottom:68px}
+#status span{display:inline-block;background:#fff;border:1px solid #000;padding:3px 8px}
+#note{position:absolute;left:0;right:0;z-index:4;background:#fff;border-bottom:1px solid #000;padding:2px 4px 2px 12px;font-size:15px;display:flex;align-items:center}
+#note span{flex:1;min-width:0;padding:6px 0}
+#note button{min-height:40px;border:0;color:#0b3d91;text-decoration:underline;padding:0 8px;font-size:15px;background:none;flex:0 0 auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:2px solid #000;z-index:7;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom));-webkit-transition:opacity .15s;transition:opacity .15s;max-height:70%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body.fade .sheet{opacity:.15}
+.sheet .tools{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 6px}
+.sheet .tools button{flex:0 0 auto;border:0;text-decoration:underline;color:#0b3d91;min-height:44px;padding:0 10px;white-space:nowrap;background:none}
+.sheet .tools button.bad{color:#a40000}
+.sheet .strip{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px -14px 0;padding:0 10px 4px}
+.ctl{display:flex;align-items:center;min-height:32px}
+.ctl span{width:92px;flex:0 0 auto;font-size:15px}
+.ctl output{width:40px;flex:0 0 auto;text-align:right;font-size:13px;color:#444}
+.seg{display:flex;margin-bottom:6px}
+.seg button{flex:1;border-left-width:0;min-height:36px;font-size:15px}
+.seg button:first-child{border-left-width:1px}
+.seg button.on{background:#000;color:#fff}
+.chk{display:flex;align-items:center;min-height:34px;font-size:15px}
+.chk input{width:22px;height:22px;margin:0 10px 0 0;accent-color:#000}
+/* camera */
+#cam{background:#000}
+#cam video{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#000}
+#cam .cbar{position:absolute;left:0;right:0;color:#fff;font-size:16px;z-index:2}
+#cam .ctop{top:0;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex}
+#cam .ctop a{color:#fff}
+#cam .cbot{bottom:0;padding:12px 24px calc(18px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:space-between}
+#shutter{width:72px;height:72px;border-radius:50%;border:3px solid #fff;background:transparent;padding:0;position:relative}
+#shutter i{position:absolute;left:5px;top:5px;right:5px;bottom:5px;border-radius:50%;background:#fff}
+#shutter:active i{background:#bbb}
+#cthumb{width:48px;height:48px;border:1px solid #fff;background:#000 center/cover no-repeat}
+#flash{position:absolute;left:0;top:0;right:0;bottom:0;background:#fff;opacity:0;pointer-events:none;-webkit-transition:opacity .25s;transition:opacity .25s;z-index:1}
+/* crop */
+#crop{background:#fff}
+#cstage{position:absolute;left:0;right:0;top:48px;bottom:60px;background:#d8d8d8;touch-action:none}
+#cstage canvas{position:absolute;left:50%;top:50%;-webkit-transform:translate(-50%,-50%);transform:translate(-50%,-50%)}
+.toast{position:absolute;left:12px;right:12px;bottom:76px;z-index:30;background:#000;color:#fff;padding:8px 12px;font-size:15px;text-align:center}
 </style>
 </head>
 <body>
 
-<!-- REVIEW -->
-<section id="review" class="screen">
-  <div class="bar">
-    <div class="l"><button class="link mute" id="btnCancel">Cancel</button></div>
-    <div><h1 id="revSub">Review</h1></div>
-    <div class="r">
-      <button class="iconbtn" id="tPrev" aria-label="Previous page"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <button class="iconbtn" id="tNext" aria-label="Next page"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
-    </div>
-  </div>
-  <div class="banner" id="banner"></div>
-  <div class="stage" id="stage">
-    <div class="pagewrap" id="pw"><canvas id="view"></canvas><img id="orig" alt="" hidden></div>
-    <div class="floatbar"><button class="btn" id="btnCompare">Hold to compare</button></div>
-    <div class="overlay" id="busy"><div class="pill" id="busyText">Preparing pages</div><div class="bar2"><i id="busyBar"></i></div></div>
-  </div>
-  <div class="panel">
-    <div class="thumbs" id="thumbs"></div>
-    <div class="tools">
-      <button class="tool" id="tRot"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.2h-4.2"/></svg>Rotate</button>
-      <button class="tool" id="tCrop"><svg viewBox="0 0 24 24"><path d="M7 3v14h14M3 7h14v14"/></svg>Crop</button>
-      <button class="tool" id="tMode"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M4 16.5l5-5 4 4 2.5-2.5 4.5 4.5"/></svg><span id="tModeLbl">Photo</span></button>
-      <button class="tool" id="tLeft"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Earlier</button>
-      <button class="tool" id="tRight"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Later</button>
-      <button class="tool danger" id="tDel"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Delete</button>
-    </div>
-    <div class="row"><div class="seg" id="preset">
-      <button data-p="faithful">Faithful</button><button data-p="pen" class="on">Clean</button><button data-p="bold">Bold</button>
-    </div><button class="link" id="toggleAdv">Adjust</button></div>
-    <div id="adv" hidden style="display:flex;flex-direction:column;gap:6px;padding-bottom:4px">
-      <div class="ctl"><label for="sStrength">Ink strength</label><input type="range" id="sStrength" min="0.6" max="1.6" step="0.01"><output id="oStrength"></output></div>
-      <div class="ctl"><label for="sClean">Background</label><input type="range" id="sClean" min="2" max="9" step="0.1"><output id="oClean"></output></div>
-      <div class="ctl"><label for="sWeight">Line weight</label><input type="range" id="sWeight" min="-1" max="1" step="0.05"><output id="oWeight"></output></div>
-      <label class="check"><input type="checkbox" id="cRules" checked> Remove colored ruling and grid lines</label>
-      <label class="check"><input type="checkbox" id="cStamp"> Stamp name and page number on each page</label>
-      <input type="text" id="stampText" placeholder="Name, course" autocomplete="off" hidden>
-    </div>
-  </div>
-  <div class="action"><button class="btn primary" id="btnQuick" disabled>Preparing</button><button class="btn quiet" id="btnNext" disabled>Change</button></div>
-</section>
-
-<!-- SAVE -->
-<section id="save" class="screen" hidden>
-  <div class="bar">
-    <div class="l"><button class="iconbtn" id="btnBack" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
-    <div><h1>Save</h1><div class="sub" id="saveSub"></div></div>
-    <div class="r"></div>
-  </div>
-  <div class="scroll" id="saveForm">
-    <div class="field">
-      <label for="fname">File name</label>
-      <input type="text" id="fname" autocomplete="off" autocapitalize="sentences" spellcheck="false">
-      <div><button class="suggest" id="suggest" hidden></button></div>
-    </div>
-    <div class="field">
-      <label>Size</label>
-      <div class="row"><div class="seg" id="qual"><button data-q="300" class="on">Sharp</button><button data-q="200">Standard</button><button data-q="150">Small</button></div></div>
-      <div class="hint" id="qualNote"></div>
-    </div>
-    <div class="field">
-      <label for="fsearch">Course</label>
-      <input type="search" id="fsearch" placeholder="Search" autocomplete="off">
-      <div class="list" id="folders"></div>
-      <div class="row" style="margin-top:4px"><input type="text" id="newFolder" placeholder="New course"><button class="btn quiet" id="btnNewFolder">Add</button></div>
-    </div>
-  </div>
-  <div class="scroll" id="saveRun" hidden>
-    <div class="hint" id="runMsg"></div>
-    <div class="bar2"><i id="runBar"></i></div>
-    <div id="resultBox"></div>
-  </div>
-  <div class="foot" id="saveFoot">
-    <button class="btn primary" id="btnUpload" disabled>Save PDF</button>
-  </div>
-  <div class="foot" id="runFoot" hidden></div>
-</section>
-
-<!-- HOME: collect the pages -->
-<section id="landing" class="screen" hidden>
-  <div class="bar">
-    <div class="l"><button class="link mute" id="lClose">Close</button></div>
-    <div><h1>Scan</h1><div class="sub" id="lSub">No pages yet</div></div>
-    <div class="r"></div>
-  </div>
-  <div class="scroll">
-    <div class="thumbsrow" id="lThumbs"></div>
-    <div class="home-hint" id="lEmpty">Lay the page flat on a dark surface. Keep the whole page in the frame. Scan finds the edges and straightens it.</div>
-    <button class="btn primary hero" id="lCamLive">Take photos</button>
-    <label class="btn quiet filebtn">Choose photos or files<input type="file" id="lPick" accept="image/*" multiple hidden></label>
-    <input type="file" id="lCam" accept="image/*" capture="environment" hidden>
-  </div>
-  <div class="foot"><button class="btn primary" id="lGo" disabled>Review pages</button></div>
+<!-- HOME -->
+<section id="home" class="scr doc">
+  <h1>Scan</h1>
+  <p>Photograph handwritten pages. Get one clean PDF.</p>
+  <p class="row"><button id="hCam" class="main grow">Take photos</button><button id="hPick" class="grow">Choose files</button></p>
+  <p class="small" id="hHint">Lay each page flat on a dark surface, whole page in view. Scan finds the edges and straightens it.</p>
+  <div class="thumbs" id="hThumbs"></div>
+  <hr>
+  <p class="row"><button id="hGo" class="main grow" disabled>Review pages</button></p>
+  <p class="small" id="hClear" hidden><a id="hClearA" href="#">Discard all pages</a></p>
+  <p class="small">Everything happens in this browser. Nothing is uploaded.</p>
+  <input type="file" id="fPick" accept="image/*" multiple hidden>
+  <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
 </section>
 
 <!-- CAMERA -->
-<section id="camera" class="modal" hidden>
-  <div class="bar"><div class="l"></div><div><h1>Camera</h1><div class="sub" id="camSub">0 pages</div></div><div class="r"><button class="link" id="camDone">Done</button></div></div>
-  <div id="camStage"><video id="camVideo" playsinline muted autoplay></video><div id="camFlash"></div></div>
-  <div class="camfoot"><div class="camthumb" id="camThumb"></div><button class="shutter" id="shutter" aria-label="Take photo"><i></i></button><div style="width:52px"></div></div>
+<section id="cam" class="scr" hidden>
+  <video id="cv" playsinline muted autoplay></video>
+  <div id="flash"></div>
+  <div class="cbar ctop"><span id="cn" style="flex:1">0 pages</span><a id="cDone" href="#">Done</a></div>
+  <div class="cbar cbot"><div id="cthumb"></div><button id="shutter" aria-label="Take photo"><i></i></button><div style="width:48px"></div></div>
+</section>
+
+<!-- REVIEW -->
+<section id="rev" class="scr" hidden>
+  <div id="stage"><div id="pw"><canvas id="view"></canvas><canvas id="orig" hidden></canvas></div></div>
+  <div id="prog"></div>
+  <div id="top" class="bar"><button id="bBack" class="lnk">&lsaquo; Pages</button><span id="pos"></span><button id="bTools" class="lnk">Tools</button></div>
+  <div id="note" hidden></div>
+  <div id="status" hidden><span id="statusT"></span></div>
+  <div id="bot" class="bar"><button id="bPrev" class="arrow" aria-label="Previous page">&lsaquo;</button><button id="bNext" class="arrow" aria-label="Next page">&rsaquo;</button><button id="bAdj" class="lnk">Adjust</button><button id="bSave" class="main" disabled>Save</button></div>
+
+  <div id="sTools" class="sheet" hidden>
+    <div class="tools"><button id="tRot">Rotate</button><button id="tCrop">Crop</button><button id="tCmp">Hold to compare</button><button id="tMode">Photo mode</button><button id="tUp">Move earlier</button><button id="tDn">Move later</button><button id="tDel" class="bad">Delete</button></div>
+    <div class="strip" id="strip"></div>
+    <div class="row"><span class="grow small" id="tInfo"></span><button class="lnk" id="tClose">Close</button></div>
+  </div>
+
+  <div id="sAdj" class="sheet" hidden>
+    <div class="seg" id="presets"><button data-p="faithful">Faithful</button><button data-p="pen">Clean</button><button data-p="bold">Bold</button></div>
+    <div class="ctl"><span>Ink</span><input type="range" id="sInk" min="0.6" max="1.6" step="0.01"><output id="oInk"></output></div>
+    <div class="ctl"><span>Background</span><input type="range" id="sBg" min="2" max="9" step="0.1"><output id="oBg"></output></div>
+    <div class="ctl"><span>Line weight</span><input type="range" id="sLw" min="-1" max="1" step="0.05"><output id="oLw"></output></div>
+    <label class="chk"><input type="checkbox" id="cRules" checked>Remove colored ruling and grid lines</label>
+    <label class="chk"><input type="checkbox" id="cStamp">Stamp name and page number</label>
+    <input type="text" id="stampText" placeholder="Name, course" autocomplete="off" hidden>
+    <div class="row"><span class="grow small">Moving a slider fades this panel.</span><button class="lnk" id="aClose">Close</button></div>
+  </div>
+
+  <div id="sRes" class="sheet" hidden>
+    <h2 id="rHead">Saving</h2>
+    <p id="rText" class="small"></p>
+    <div id="rBarWrap" style="height:6px;border:1px solid #000;margin:0 0 12px"><div id="rBar" style="height:100%;width:0;background:#000"></div></div>
+    <div id="rForm" hidden>
+      <label class="small" for="rName">File name</label>
+      <input type="text" id="rName" autocomplete="off" autocapitalize="sentences" spellcheck="false" style="margin-bottom:10px">
+      <p class="row"><button id="rShare" class="main grow">Share or save</button></p>
+      <p class="small"><a id="rSmall" href="#">Smaller</a> &nbsp; <a id="rSharp" href="#">Sharper</a> &nbsp; <a id="rMore" href="#">New scan</a> &nbsp; <a id="rBack" href="#">Back</a></p>
+    </div>
+    <div id="rFail" hidden><p class="row"><button id="rRetry" class="main grow">Try again</button></p></div>
+  </div>
 </section>
 
 <!-- CROP -->
-<section id="crop" class="modal" hidden>
-  <div class="bar"><div class="l"></div><div><h1>Crop</h1><div class="sub">Drag the corners to the page edges</div></div><div class="r"></div></div>
-  <div id="cropStage"><canvas id="cropCanvas"></canvas></div>
-  <div class="foot"><button class="btn quiet" id="cropAuto">Auto-detect</button><button class="btn quiet" id="cropCancel">Cancel</button><button class="btn primary" id="cropApply">Apply</button></div>
+<section id="crop" class="scr" hidden>
+  <div class="bar" style="top:0;padding-top:env(safe-area-inset-top);border-bottom:1px solid #000;min-height:48px"><span style="flex:1;text-align:center">Drag the corners to the page edges</span></div>
+  <div id="cstage"><canvas id="cc"></canvas></div>
+  <div class="bar" style="bottom:0;border-top:1px solid #000;padding-bottom:env(safe-area-inset-bottom);min-height:60px"><button id="cAuto" class="lnk">Auto</button><button id="cCancel" class="lnk">Cancel</button><button id="cApply" class="main" style="margin:6px 8px 6px auto">Apply</button></div>
 </section>
 
 <script id="lib">/*__LIB__*/</script>
 <script>
 "use strict";
-/* ============================================================
-   Worker (runs lib + this handler in a Blob worker)
-   ============================================================ */
+/* ==================================================================
+   Worker. The library above is prepended, so analyze(), shape(), the
+   PDF writer and fflate are all in scope. Runs off the main thread so
+   the page never freezes, and reports progress while it works.
+   ================================================================== */
 function workerMain() {
-  const store = new Map();
-  const grayFrom = (ink) => renderGray(ink);
-  self.onmessage = (ev) => {
-    const m = ev.data;
-    const post = (o, t) => self.postMessage({ ...o, rid: m.rid }, t);
+  var store = {};
+  function send(o, t) { self.postMessage(o, t || []); }
+  self.onmessage = function (ev) {
+    var m = ev.data, last = 0;
+    function prog(f, label) { var now = Date.now(); if (f >= 1 || now - last > 60) { last = now; send({ type: 'progress', rid: m.rid, frac: f, label: label }); } }
     try {
-      if (m.type === 'analyze') {
-        const img = { data: new Uint8ClampedArray(m.rgba), w: m.w, h: m.h };
-        const o = { dpi: m.dpi };
-        if (m.quadN) o.quad = m.quadN.map((p) => [p[0] * m.w, p[1] * m.h]);
-        const r = rectifyPage(img, o);
-        const an = analyzeInk(r.image, { dpi: r.dpi || m.dpi });
-        store.set(m.id, { an, dpi: r.dpi || m.dpi });
-        const ink = shapeInk(an, m.opts);
-        const q = pageQuality(ink, an);
-        const g = m.mode === 'gray' ? { data: renderPhotoGray(an), w: ink.w, h: ink.h } : grayFrom(ink);
-        const rect = r.image.data.buffer;
-        post({ type: 'analyzed', id: m.id, w: ink.w, h: ink.h, gray: g.data.buffer, rect, quadN: r.quad.map((p) => [p[0] / m.w, p[1] / m.h]), fullFrame: !!r.fullFrame, lowConfidence: !!r.lowConfidence, quality: q, dpi: r.dpi || m.dpi }, [g.data.buffer, rect]);
+      if (m.type === 'analyze' || m.type === 'exportFull') {
+        var src = new Uint8Array(m.buf), quadN = m.quadN, low = false;
+        if (m.small) {   // find the page here, off the main thread
+          var sm = m.small, det = detectPage({ data: sm.data, w: sm.w, h: sm.h });
+          if (det.fullFrame) quadN = null;
+          else if (!quadLooksValid(det.quad, { w: sm.w, h: sm.h })) { quadN = null; low = true; }
+          else quadN = det.quad.map(function (q) { return [q[0] / sm.w, q[1] / sm.h]; });
+        }
+        var geom = pageGeometry(m.sw, m.sh, quadN, m.dpi, {});
+        if (m.type === 'analyze') {   // show the straightened colour page right away; cleaning takes longer
+          var rect = warpPreview(src, m.sw, m.sh, geom, 640);
+          send({ type: 'preview', rid: m.rid, rect: rect.data.buffer, rw: rect.w, rh: rect.h, quadN: quadN, low: low }, [rect.data.buffer]);
+        }
+        var an = analyze(src, m.sw, m.sh, geom, m.opts, prog, function () { src = null; m.buf = null; });
+        if (m.type === 'analyze') {
+          store[m.id] = an;
+          var gray = new Uint8Array(an.w * an.h);
+          var q = shape(an, m.opts, gray, m.mode);
+          send({ type: 'done', rid: m.rid, w: an.w, h: an.h, dpi: an.dpi, gray: gray.buffer, quality: q, quadN: quadN, low: low }, [gray.buffer]);
+        } else {
+          var g = new Uint8Array(an.w * an.h); shape(an, m.opts, g, m.mode);
+          if (m.stamp) applyStamp(g, an.w, an.h, m.stamp);
+          prog(0.9, 'Compressing');
+          var page = compressPage(g, an.w, an.h, an.dpi);
+          send({ type: 'done', rid: m.rid, w: page.w, h: page.h, dpi: page.dpi, z: page.z.buffer }, [page.z.buffer]);
+        }
       } else if (m.type === 'shape') {
-        const s = store.get(m.id);
-        const ink = shapeInk(s.an, m.opts);
-        const q = pageQuality(ink, s.an);
-        const g = m.mode === 'gray' ? { data: renderPhotoGray(s.an), w: ink.w, h: ink.h } : grayFrom(ink);
-        post({ type: 'shaped', id: m.id, w: ink.w, h: ink.h, gray: g.data.buffer, quality: q }, [g.data.buffer]);
+        var a = store[m.id]; var out = new Uint8Array(a.w * a.h);
+        var qq = shape(a, m.opts, out, m.mode);
+        send({ type: 'done', rid: m.rid, w: a.w, h: a.h, gray: out.buffer, quality: qq }, [out.buffer]);
       } else if (m.type === 'export') {
-        const img = { data: new Uint8ClampedArray(m.rgba), w: m.w, h: m.h };
-        const o = { dpi: m.dpi };
-        if (m.quadN) o.quad = m.quadN.map((p) => [p[0] * m.w, p[1] * m.h]);
-        const r = rectifyPage(img, o);
-        const an = analyzeInk(r.image, { dpi: r.dpi || m.dpi });
-        const ink = shapeInk(an, m.opts);
-        const g = m.mode === 'gray' ? renderPhotoGray(an) : renderGray(ink).data;
-        post({ type: 'exported', id: m.id, w: ink.w, h: ink.h, dpi: r.dpi || m.dpi, gray: g.buffer }, [g.buffer]);
-      } else if (m.type === 'drop') {
-        store.delete(m.id);
-      }
-    } catch (e) {
-      post({ type: 'error', id: m.id, reqType: m.type, error: String((e && e.stack) || e) });
-    }
+        var b = store[m.id]; var gg = new Uint8Array(b.w * b.h); shape(b, m.opts, gg, m.mode);
+        var W = b.w, H = b.h, dpi = b.dpi;
+        if (m.outDpi && m.outDpi < b.dpi * 0.95) { var k = m.outDpi / b.dpi; var nw = Math.round(W * k), nh = Math.round(H * k); prog(0.5, 'Resizing'); gg = resizeGray(gg, W, H, nw, nh); W = nw; H = nh; dpi = m.outDpi; }
+        if (m.stamp) applyStamp(gg, W, H, m.stamp);
+        prog(0.8, 'Compressing');
+        var pg = compressPage(gg, W, H, dpi);
+        send({ type: 'done', rid: m.rid, w: pg.w, h: pg.h, dpi: pg.dpi, z: pg.z.buffer }, [pg.z.buffer]);
+      } else if (m.type === 'warm') {   // run the hot loops once on a tiny page so they are compiled before the first real one
+        var WW = 300, WH = 400, wb = new Uint8Array(WW * WH * 4);
+        for (var wy = 0; wy < WH; wy++) for (var wx = 0; wx < WW; wx++) { var wo = (wy * WW + wx) * 4, v = 205 - (wx / WW) * 30 + ((wx * 7 + wy * 13) % 9); if (wy % 40 === 20 || (wx > 60 && wx < 64 && wy > 50 && wy < 300)) v = 90; wb[wo] = v; wb[wo + 1] = v; wb[wo + 2] = v + 6; wb[wo + 3] = 255; }
+        var wg = pageGeometry(WW, WH, null, 100, {}), wa = analyze(wb, WW, WH, wg, {}, null), wo2 = new Uint8Array(wa.w * wa.h);
+        shape(wa, {}, wo2, 'ink'); shape(wa, {}, wo2, 'ink'); compressPage(wo2, wa.w, wa.h, 100);
+        send({ type: 'done', rid: m.rid });
+      } else if (m.type === 'drop') { delete store[m.id]; }
+    } catch (e) { send({ type: 'error', rid: m.rid, error: String((e && e.stack) || e) }); }
   };
 }
 
-/* ============================================================
+/* ==================================================================
    App
-   ============================================================ */
+   ================================================================== */
 (function () {
-  const $ = (s) => document.querySelector(s);
-  const el = {
-    review: $('#review'), save: $('#save'), crop: $('#crop'), stage: $('#stage'), pw: $('#pw'), view: $('#view'), orig: $('#orig'),
-    banner: $('#banner'), thumbs: $('#thumbs'), busy: $('#busy'), busyText: $('#busyText'), busyBar: $('#busyBar'), revSub: $('#revSub'),
+  function $(s) { return document.querySelector(s); }
+  function byId(s) { return document.getElementById(s); }
+  var el = {};
+  ['home', 'cam', 'rev', 'crop', 'stage', 'pw', 'view', 'orig', 'prog', 'top', 'bot', 'note', 'status', 'statusT', 'pos', 'sTools', 'sAdj', 'sRes'].forEach(function (id) { el[id] = byId(id); });
+  var PRESETS = { faithful: { ink: 0.85, bg: 3.5, lw: -0.1 }, pen: { ink: 1.1, bg: 4.0, lw: 0 }, bold: { ink: 0.8, bg: 4.0, lw: 0.45 } };
+  var S = {
+    pages: [], cur: 0, nextId: 1, cfg: {}, size: 200, pdf: null, busy: false, pendingName: null,
+    set: { preset: 'pen', ink: 1.1, bg: 4.0, lw: 0, rules: true, stamp: false, stampText: '', size: 200, lastName: '' }
   };
-  const PRESETS = {
-    faithful: { strength: 0.85, clean: 3.5, weight: -0.1 },
-    pen: { strength: 1.1, clean: 4.0, weight: 0 },
-    bold: { strength: 0.8, clean: 4.0, weight: 0.45 },
-  };
-  const S = {
-    pages: [], cur: 0, nextId: 1, cfg: {}, done: null,
-    settings: { preset: 'pen', ...PRESETS.pen, rules: true, stamp: false, stampText: '', quality: 300, links: {} },
-    previewDpi: 150, folders: [], recent: [], folderId: null, pdf: null,
-  };
-  const optsFromSettings = () => ({ gamma: S.settings.strength, floorK: S.settings.clean, weight: S.settings.weight, ruleSuppress: S.settings.rules ? 1 : 0 });
+  var completion = null;
+  var cores = navigator.hardwareConcurrency || 2;
+  var lite = cores <= 2;
+
+  /* ---------- small helpers ---------- */
+  function persist() { try { localStorage.setItem('scan_settings', JSON.stringify(S.set)); } catch (e) {} }
+  function loadSaved() { try { var s = JSON.parse(localStorage.getItem('scan_settings') || 'null'); if (s) for (var k in s) S.set[k] = s[k]; } catch (e) {} }
+  function fitHeight() { document.body.style.height = window.innerHeight + 'px'; document.documentElement.style.height = window.innerHeight + 'px'; }
+  window.addEventListener('resize', function () { fitHeight(); if (!el.rev.hidden) fitView(); });
+  fitHeight();
+  var toastT;
+  function toast(msg) {
+    var t = byId('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+  function show(which) { ['home', 'cam', 'rev', 'crop'].forEach(function (k) { el[k].hidden = k !== which; }); }
+  function fmtMB(n) { return (n / 1048576).toFixed(n > 1e7 ? 1 : 2) + ' MB'; }
+  function optsNow() { return { gamma: S.set.ink, floorK: S.set.bg, weight: S.set.lw, ruleSuppress: S.set.rules ? 1 : 0 }; }
+  function dateName() { var d = new Date(), p = function (n) { return String(n).padStart(2, '0'); }; return (S.cfg.namePrefix || 'Scan') + ' ' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+  // "HW 5" becomes "HW 6". A date or no number gives a fresh dated name.
+  function nextName() {
+    var n = S.set.lastName || '', m = n.match(/(\d+)\s*$/);
+    if (m && !/\d{4}-\d{2}-\d{2}\s*$/.test(n)) return n.slice(0, m.index) + (parseInt(m[1], 10) + 1) + n.slice(m.index + m[1].length);
+    return dateName();
+  }
+  function pageWord(n) { return n + (n === 1 ? ' page' : ' pages'); }
+
+  /* ---------- image decode: Image + canvas, so it works on old iPhones. EXIF is handled by hand when the browser will not. ---------- */
+  var autoOrient = null;
+  function detectAutoOrient() {
+    return new Promise(function (resolve) {
+      try {
+        var c = document.createElement('canvas'); c.width = 2; c.height = 1; var x = c.getContext('2d'); x.fillStyle = '#f00'; x.fillRect(0, 0, 2, 1);
+        c.toBlob(function (blob) {
+          if (!blob) { autoOrient = true; resolve(); return; }
+          var r = new FileReader();
+          r.onload = function () {
+            var jpg = new Uint8Array(r.result);
+            var exif = [0x45, 0x78, 0x69, 0x66, 0, 0, 0x4D, 0x4D, 0, 0x2A, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0];
+            var len = exif.length + 2, out = new Uint8Array(jpg.length + len + 2);
+            out[0] = 0xFF; out[1] = 0xD8; out[2] = 0xFF; out[3] = 0xE1; out[4] = len >> 8; out[5] = len & 255; out.set(exif, 6); out.set(jpg.subarray(2), 6 + exif.length);
+            var u = URL.createObjectURL(new Blob([out], { type: 'image/jpeg' })), im = new Image();
+            im.onload = function () { autoOrient = im.naturalWidth === 1; URL.revokeObjectURL(u); resolve(); };
+            im.onerror = function () { autoOrient = true; URL.revokeObjectURL(u); resolve(); };
+            im.src = u;
+          };
+          r.onerror = function () { autoOrient = true; resolve(); };
+          r.readAsArrayBuffer(blob);
+        }, 'image/jpeg', 0.9);
+      } catch (e) { autoOrient = true; resolve(); }
+    });
+  }
+  function readExifRot(buf) {
+    var v = new DataView(buf); if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return 0;
+    var o = 2;
+    while (o + 4 < v.byteLength) {
+      var mk = v.getUint16(o), ln = v.getUint16(o + 2);
+      if (mk === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) {
+        var t = o + 10, le = v.getUint16(t) === 0x4949, ifd = t + v.getUint32(t + 4, le), cnt = v.getUint16(ifd, le);
+        for (var i = 0; i < cnt; i++) { var e = ifd + 2 + i * 12; if (v.getUint16(e, le) === 0x0112) { var ori = v.getUint16(e + 8, le); return ori === 6 ? 1 : ori === 3 ? 2 : ori === 8 ? 3 : 0; } }
+        return 0;
+      }
+      if ((mk & 0xFF00) !== 0xFF00) break;
+      o += 2 + ln;
+    }
+    return 0;
+  }
+  function loadImg(blob) { return new Promise(function (res, rej) { var u = URL.createObjectURL(blob), im = new Image(); im.onload = function () { res({ im: im, u: u }); }; im.onerror = function () { URL.revokeObjectURL(u); rej(new Error('Could not read this image')); }; im.src = u; }); }
+  // { buf, w, h, small:{data,w,h} } with the photo upright and the long side at most maxSide
+  async function decodePhoto(blob, userRot, maxSide) {
+    if (autoOrient === null) await detectAutoOrient();
+    var rot = userRot || 0;
+    if (!autoOrient) { var head = await new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(new ArrayBuffer(0)); }; r.readAsArrayBuffer(blob.slice(0, 131072)); }); rot += readExifRot(head); }
+    rot = ((rot % 4) + 4) % 4;
+    var l = await loadImg(blob), im = l.im, sw0 = im.naturalWidth, sh0 = im.naturalHeight, swp = rot % 2 === 1;
+    var sw = swp ? sh0 : sw0, sh = swp ? sw0 : sh0;
+    var k = Math.min(1, maxSide / Math.max(sw, sh)), w = Math.round(sw * k), h = Math.round(sh * k);
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var x = c.getContext('2d'); x.save(); x.translate(w / 2, h / 2); x.rotate(rot * Math.PI / 2);
+    var dw = swp ? h : w, dh = swp ? w : h; x.drawImage(im, -dw / 2, -dh / 2, dw, dh); x.restore();
+    var big = x.getImageData(0, 0, w, h);
+    var sk = Math.min(1, 640 / Math.max(w, h)), smw = Math.max(8, Math.round(w * sk)), smh = Math.max(8, Math.round(h * sk));
+    var sc = document.createElement('canvas'); sc.width = smw; sc.height = smh; var sx = sc.getContext('2d'); sx.drawImage(c, 0, 0, smw, smh);
+    var small = sx.getImageData(0, 0, smw, smh);
+    c.width = c.height = 0; sc.width = sc.height = 0; URL.revokeObjectURL(l.u); im.src = '';
+    return { buf: big.data.buffer, w: w, h: h, small: { data: small.data, w: smw, h: smh } };
+  }
 
   /* ---------- worker pool ---------- */
-  let workers = [];
-  const waiting = new Map(); let RID = 0;
+  var workers = [], rid = 0, waiting = {};
   function startWorkers() {
     if (workers.length) return;
-    const libText = document.getElementById('lib').textContent;
-    const src = libText + '\n(' + workerMain.toString() + ')();';
-    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 1));
-    for (let i = 0; i < n; i++) {
-      const w = new Worker(url);
-      w.busy = 0;
-      w.onmessage = (ev) => {
-        const m = ev.data;
-        const key = m.rid;
-        const slot = waiting.get(key);
-        w.busy = Math.max(0, w.busy - 1);
-        if (slot) { waiting.delete(key); m.type === 'error' ? slot.reject(new Error(m.error)) : slot.resolve(m); }
+    if (!window.Worker) { toast('This browser cannot run Scan.'); return; }
+    var src = byId('lib').textContent + '\n(' + workerMain.toString() + ')();';
+    var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    var n = lite ? 1 : Math.max(1, Math.min(3, cores - 1));
+    for (var i = 0; i < n; i++) {
+      var w = new Worker(url); w.busy = false;
+      w.onmessage = function (ev) {
+        var m = ev.data, slot = waiting[m.rid]; if (!slot) return;
+        if (m.type === 'progress') { if (slot.onProg) slot.onProg(m.frac, m.label); return; }
+        if (m.type === 'preview') { if (slot.onPreview) slot.onPreview(m); return; }
+        delete waiting[m.rid]; slot.worker.busy = false;
+        if (m.type === 'error') slot.reject(new Error(m.error)); else slot.resolve(m);
         pump();
       };
-      w.onerror = (e) => console.error('worker error', e.message);
+      w.onerror = function (e) { console.error('worker error', e && e.message); };
       workers.push(w);
+      callWorker(w, { type: 'warm' }, [], null).then(function () { pump(); }).catch(function () {});
     }
   }
-  const queue = [];
+  function callWorker(w, msg, transfer, onProg, onPreview) {
+    return new Promise(function (resolve, reject) { msg.rid = ++rid; waiting[msg.rid] = { resolve: resolve, reject: reject, onProg: onProg, onPreview: onPreview, worker: w }; w.busy = true; w.postMessage(msg, transfer || []); });
+  }
+
+  /* ---------- analysis queue: the page you are looking at first, then the rest in order ---------- */
+  function workingDpi() { var n = S.pages.length, d = n <= 6 ? 200 : n <= 12 ? 170 : n <= 24 ? 145 : 120; return lite ? Math.min(d, 160) : d; }
   function pump() {
-    while (queue.length) {
-      const job = queue[0];
-      const w = job.worker || workers.reduce((a, b) => (a.busy <= b.busy ? a : b));
-      if (!job.worker && w.busy >= 1) return;       // heavy jobs: one per worker
-      queue.shift();
-      w.busy++;
-      w.postMessage(job.msg, job.transfer || []);
-      if (job.pin) S.pages.find((p) => p.id === job.msg.id).worker = w;
+    if (!workers.length) return;
+    var idle = workers.filter(function (w) { return !w.busy; });
+    if (!idle.length) return;
+    var cur = S.pages[S.cur], order = S.pages.slice().sort(function (a, b) { return (b === cur ? 1 : 0) - (a === cur ? 1 : 0); });
+    for (var i = 0; i < order.length && idle.length; i++) {
+      var pg = order[i];
+      if (pg.state === 'new') { var w = idle.shift(); runAnalysis(pg, w, workingDpi()); }
     }
   }
-  // request/response with the page's owning worker
-  function call(msg, expectType, transfer, pinOwner) {
-    return new Promise((resolve, reject) => {
-      msg.rid = ++RID; waiting.set(msg.rid, { resolve, reject });
-      const pg = S.pages.find((p) => p.id === msg.id);
-      const job = { msg, transfer, pin: pinOwner, worker: pg && pg.worker && !pinOwner ? pg.worker : null };
-      if (job.worker) { job.worker.busy++; job.worker.postMessage(msg, transfer || []); }
-      else { queue.push(job); pump(); }
-    });
-  }
-
-  /* ---------- image decode ---------- */
-  async function toBitmap(blob) {
-    try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); }
-    catch (e) {
-      return await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(blob); });
-    }
-  }
-  async function decode(blob, maxSide, rot = 0) {
-    const bmp = await toBitmap(blob);
-    const sw0 = bmp.width || bmp.naturalWidth, sh0 = bmp.height || bmp.naturalHeight;
-    const swap = rot % 2 === 1;
-    const sw = swap ? sh0 : sw0, sh = swap ? sw0 : sh0;
-    const k = Math.min(1, maxSide / Math.max(sw, sh));
-    const w = Math.round(sw * k), h = Math.round(sh * k);
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.save(); ctx.translate(w / 2, h / 2); ctx.rotate(rot * Math.PI / 2);
-    const dw = swap ? h : w, dh = swap ? w : h;
-    ctx.drawImage(bmp, -dw / 2, -dh / 2, dw, dh); ctx.restore();
-    if (bmp.close) bmp.close();
-    const d = ctx.getImageData(0, 0, w, h);
-    c.width = c.height = 0;
-    return { rgba: d.data.buffer, w, h, srcW: sw, srcH: sh };
-  }
-  function b64ToBlob(b64, type) {
-    const bin = atob(b64); const u = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-    return new Blob([u], { type: type || 'image/jpeg' });
-  }
-  const grayToCanvas = (gray, w, h, canvas) => {
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    const id = ctx.createImageData(w, h); const d = id.data;
-    for (let i = 0, j = 0; i < gray.length; i++, j += 4) { const v = gray[i]; d[j] = d[j + 1] = d[j + 2] = v; d[j + 3] = 255; }
-    ctx.putImageData(id, 0, 0);
-  };
-  const thumbFromGray = (gray, w, h) => {
-    const c = document.createElement('canvas'); grayToCanvas(gray, w, h, c);
-    const t = document.createElement('canvas'); const k = 110 / w; t.width = 110; t.height = Math.round(h * k);
-    t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
-    return t.toDataURL('image/jpeg', 0.7);
-  };
-  function rectToUrl(buf, w, h) {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(buf), w, h), 0, 0);
-    return new Promise((res) => c.toBlob((b) => { res(URL.createObjectURL(b)); c.width = c.height = 0; }, 'image/jpeg', 0.82));
-  }
-
-  /* ---------- toasts ---------- */
-  let toastTimer;
-  function toast(msg) {
-    let t = document.querySelector('.toast'); if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
-    t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2400);
-  }
-
-  /* ---------- page processing ---------- */
-  function setBusy(text, frac) {
-    el.busy.hidden = false; el.busyText.textContent = text; el.busyBar.style.width = Math.round((frac || 0) * 100) + '%';
-  }
-  async function processPage(pg, quadN) {
-    const maxSide = Math.max(2000, Math.round(S.previewDpi * 11 * 1.7));
-    const dec = await decode(pg.blob, maxSide, pg.rot || 0);
-    const r = await call({ type: 'analyze', id: pg.id, rgba: dec.rgba, w: dec.w, h: dec.h, dpi: S.previewDpi, quadN: quadN || null, opts: optsFromSettings(), mode: pg.mode }, 'analyzed', [dec.rgba], !pg.worker);
-    pg.gray = new Uint8Array(r.gray); pg.w = r.w; pg.h = r.h; pg.quality = r.quality; pg.quadN = r.quadN;
-    pg.fullFrame = r.fullFrame; pg.lowConfidence = r.lowConfidence;
-    if (pg.rectUrl) URL.revokeObjectURL(pg.rectUrl);
-    pg.rectUrl = await rectToUrl(r.rect, r.w, r.h);
-    pg.thumb = thumbFromGray(pg.gray, pg.w, pg.h);
-    pg.srcW = dec.srcW; pg.srcH = dec.srcH; pg.dpi = r.dpi || S.previewDpi;
-  }
-  async function processAll() {
-    const todo = S.pages.filter((p) => !p.gray);
-    let done = 0; setBusy('Cleaning page 1 of ' + todo.length, 0);
-    // process in parallel across the worker pool
-    let idx = 0;
-    const lanes = Math.max(1, workers.length);
-    await Promise.all(Array.from({ length: lanes }, async () => {
-      while (idx < todo.length) {
-        const pg = todo[idx++];
-        try { await processPage(pg); } catch (e) { pg.error = String(e.message || e); console.error(e); }
-        done++; setBusy('Cleaning page ' + Math.min(done + 1, todo.length) + ' of ' + todo.length, done / todo.length);
-        renderThumbs();
-        if (done === 1 || pg === S.pages[S.cur]) showPage();
-      }
-    }));
-    el.busy.hidden = true; showPage();
-  }
-  async function reshape(pg) {
-    if (!pg || !pg.gray) return;
-    const r = await call({ type: 'shape', id: pg.id, opts: optsFromSettings(), mode: pg.mode }, 'shaped');
-    pg.gray = new Uint8Array(r.gray); pg.quality = r.quality; pg.stale = false;
-  }
-  let shapeBusy = false, shapeAgain = false;
-  async function liveReshape() {
-    if (shapeBusy) { shapeAgain = true; return; }
-    shapeBusy = true;
+  async function runAnalysis(pg, w, dpi, tried) {
+    pg.state = 'working'; w.busy = true; pg.frac = 0; pg.label = 'Reading the photo'; updateStatus();
+    var t0 = performance.now(), tm = {};
     try {
-      do { shapeAgain = false; const pg = S.pages[S.cur]; await reshape(pg); if (pg === S.pages[S.cur]) drawCurrent(); } while (shapeAgain);
+      var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * dpi * 1.25)); tm.decode = Math.round(performance.now() - t0);
+      var override = pg.quadOverride !== undefined, msg = { type: 'analyze', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: override ? pg.quadOverride : null, small: override ? null : d.small, dpi: dpi, opts: optsNow(), mode: pg.mode };
+      var xfer = [d.buf]; if (!override) xfer.push(d.small.data.buffer);
+      var res = await callWorker(w, msg, xfer, function (f, label) { pg.frac = f; pg.label = label; updateStatus(); }, function (pv) {
+        pg.rect = { data: new Uint8Array(pv.rect), w: pv.rw, h: pv.rh }; pg.low = !!pv.low; pg.quadN = pv.quadN;
+        if (pg === S.pages[S.cur] && pg.state === 'working') drawRgbaPreview(pg.rect);
+      });
+      pg.low = !!res.low; pg.quadN = res.quadN;
+      pg.w = res.w; pg.h = res.h; pg.dpi = res.dpi; pg.worker = w; pg.quality = res.quality;
+      tm.detect = 0; tm.worker = Math.round(performance.now() - t0 - tm.decode); pg.t = tm; pg.state = 'ready'; pg.thumb = null;
+      onPageReady(pg, new Uint8Array(res.gray)); tm.total = Math.round(performance.now() - t0);
+    } catch (e) {
+      console.error(e);
+      if (!tried && dpi > 120) { w.busy = false; return runAnalysis(pg, w, Math.round(dpi * 0.75), true); }   // out of memory? try smaller
+      pg.state = 'error'; pg.error = String(e.message || e);
+    }
+    w.busy = false; updateStatus(); renderStrip(); updateBar(); pump();
+  }
+  function updateStatus() {
+    var working = S.pages.filter(function (p) { return p.state === 'working'; }), waitingN = S.pages.filter(function (p) { return p.state === 'new'; }).length;
+    var total = S.pages.length, doneN = S.pages.filter(function (p) { return p.state === 'ready' || p.state === 'error'; }).length;
+    if (!working.length && !waitingN) { el.status.hidden = true; el.prog.style.width = '0'; return; }
+    var cur = working[0], frac = cur ? cur.frac : 0;
+    el.prog.style.width = Math.round(((doneN + frac) / Math.max(1, total)) * 100) + '%';
+    el.statusT.textContent = (total > 1 ? 'Page ' + Math.min(total, doneN + 1) + ' of ' + total + '. ' : '') + (cur ? cur.label : 'Waiting');
+    el.status.hidden = false;
+  }
+
+  /* ---------- viewer: draw the page, zoom, pan ---------- */
+  var view = { gray: null, w: 0, h: 0, img: null, u32: null, ctx: null };
+  var V = { k: 1, x: 0, y: 0, fit: 1 };
+  function applyView() { var t = 'translate3d(' + V.x + 'px,' + V.y + 'px,0) scale(' + V.k + ')'; el.pw.style.webkitTransform = t; el.pw.style.transform = t; }
+  function fitView() {
+    if (!view.w) return; var w = el.stage.clientWidth, h = el.stage.clientHeight;
+    V.fit = Math.min(w / view.w, h / view.h); V.k = V.fit; V.x = (w - view.w * V.k) / 2; V.y = (h - view.h * V.k) / 2; applyView();
+  }
+  function drawGray(gray, w, h) {
+    var cv = el.view;
+    if (cv.width !== w || cv.height !== h || !view.w) {
+      cv.width = w; cv.height = h; el.orig.style.width = w + 'px'; el.orig.style.height = h + 'px'; el.pw.style.width = w + 'px'; el.pw.style.height = h + 'px';
+      view.ctx = cv.getContext('2d'); view.img = view.ctx.createImageData(w, h); view.u32 = new Uint32Array(view.img.data.buffer); view.w = w; view.h = h; fitView();
+    }
+    var u = view.u32; for (var i = 0, n = w * h; i < n; i++) { var g = gray[i]; u[i] = 0xFF000000 | (g << 16) | (g << 8) | g; }
+    view.ctx.putImageData(view.img, 0, 0); view.gray = gray; drawStamp();
+  }
+  function drawRgbaPreview(r) {   // the straightened colour page, shown while the cleaning runs
+    var cv = el.view;
+    if (cv.width !== r.w || cv.height !== r.h || !view.w) {
+      cv.width = r.w; cv.height = r.h; el.orig.style.width = r.w + 'px'; el.orig.style.height = r.h + 'px'; el.pw.style.width = r.w + 'px'; el.pw.style.height = r.h + 'px';
+      view.ctx = cv.getContext('2d'); view.img = null; view.u32 = null; view.w = r.w; view.h = r.h; fitView();
+    }
+    var id = view.ctx.createImageData(r.w, r.h); id.data.set(r.data); view.ctx.putImageData(id, 0, 0);
+  }
+  function stampLabel(i) { var t = (S.set.stampText || '').trim(); return (t ? t + '   ' : '') + 'Page ' + (i + 1) + ' of ' + S.pages.length; }
+  function drawStamp() {
+    var pg = S.pages[S.cur]; if (!pg || !S.set.stamp || !view.ctx) return;
+    var dpi = pg.dpi || 200, c = view.ctx; c.font = Math.round(dpi * 0.13) + 'px Georgia,serif'; c.fillStyle = '#000'; c.textAlign = 'right'; c.fillText(stampLabel(S.cur), view.w - Math.round(dpi * 0.4), Math.round(dpi * 0.42));
+  }
+  function showOriginal(on) {
+    var pg = S.pages[S.cur]; if (!pg || !pg.rect) return; var o = el.orig;
+    if (on) {
+      if (o.width !== pg.rect.w) { o.width = pg.rect.w; o.height = pg.rect.h; }
+      var id = o.getContext('2d').createImageData(pg.rect.w, pg.rect.h); id.data.set(pg.rect.data); o.getContext('2d').putImageData(id, 0, 0);
+      o.style.width = view.w + 'px'; o.style.height = view.h + 'px'; o.hidden = false; el.view.style.visibility = 'hidden';
+    } else { o.hidden = true; el.view.style.visibility = 'visible'; }
+  }
+
+  // touch: one finger pans, two pinch, tap toggles the bars, double tap zooms. Mouse and wheel for desktop.
+  var G = { start: null, moved: false, last: 0, lastX: 0, lastY: 0, fadeT: 0 };
+  function pts(e) { var out = []; for (var i = 0; i < e.touches.length; i++) out.push({ x: e.touches[i].clientX, y: e.touches[i].clientY }); return out; }
+  function clampView() { var w = el.stage.clientWidth, h = el.stage.clientHeight, pw = view.w * V.k, ph = view.h * V.k, m = 40; V.x = Math.min(w - m, Math.max(m - pw, V.x)); V.y = Math.min(h - m, Math.max(m - ph, V.y)); }
+  function gStart(p) { G.start = { k: V.k, x: V.x, y: V.y, p: p }; G.moved = false; }
+  function gMove(p) {
+    var st = G.start; if (!st) return;
+    if (p.length === 1 && st.p.length === 1) {
+      var dx = p[0].x - st.p[0].x, dy = p[0].y - st.p[0].y;
+      if (!G.moved && Math.abs(dx) + Math.abs(dy) < 8) return;
+      V.x = st.x + dx; V.y = st.y + dy;
+    } else if (p.length >= 2 && st.p.length >= 2) {
+      var d0 = Math.hypot(st.p[0].x - st.p[1].x, st.p[0].y - st.p[1].y), d1 = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      var k = Math.max(V.fit * 0.8, Math.min(V.fit * 10, st.k * d1 / d0)), r = el.stage.getBoundingClientRect();
+      var c0x = (st.p[0].x + st.p[1].x) / 2 - r.left, c0y = (st.p[0].y + st.p[1].y) / 2 - r.top, c1x = (p[0].x + p[1].x) / 2 - r.left, c1y = (p[0].y + p[1].y) / 2 - r.top;
+      V.k = k; V.x = c1x - (c0x - st.x) * (k / st.k); V.y = c1y - (c0y - st.y) * (k / st.k);
+    } else return;
+    if (!G.moved) { G.moved = true; document.body.classList.add('off'); document.body.classList.add('fade'); }
+    clampView(); applyView();
+  }
+  function gEnd(x, y) {
+    clearTimeout(G.fadeT); G.fadeT = setTimeout(function () { document.body.classList.remove('fade'); }, 700);
+    if (!G.moved && G.start) {
+      var now = Date.now();
+      if (now - G.last < 320 && Math.abs(x - G.lastX) < 30 && Math.abs(y - G.lastY) < 30) { toggleZoom(x, y); G.last = 0; }
+      else { G.last = now; G.lastX = x; G.lastY = y; setTimeout(function () { if (G.last === now) document.body.classList.toggle('off'); }, 330); }
+    }
+    G.start = null;
+  }
+  function toggleZoom(cx, cy) {
+    var r = el.stage.getBoundingClientRect();
+    if (V.k > V.fit * 1.4) { fitView(); return; }
+    var k = V.fit * 2.6, px = cx - r.left, py = cy - r.top; V.x = px - (px - V.x) * (k / V.k); V.y = py - (py - V.y) * (k / V.k); V.k = k; clampView(); applyView();
+  }
+  el.stage.addEventListener('touchstart', function (e) { e.preventDefault(); gStart(pts(e)); }, { passive: false });
+  el.stage.addEventListener('touchmove', function (e) { e.preventDefault(); gMove(pts(e)); }, { passive: false });
+  el.stage.addEventListener('touchend', function (e) { e.preventDefault(); if (e.touches.length) { gStart(pts(e)); G.moved = true; return; } var t = e.changedTouches[0]; gEnd(t.clientX, t.clientY); }, { passive: false });
+  el.stage.addEventListener('touchcancel', function () { G.start = null; });
+  var mouse = null;
+  el.stage.addEventListener('mousedown', function (e) { mouse = true; gStart([{ x: e.clientX, y: e.clientY }]); });
+  window.addEventListener('mousemove', function (e) { if (mouse) gMove([{ x: e.clientX, y: e.clientY }]); });
+  window.addEventListener('mouseup', function (e) { if (mouse) { mouse = null; gEnd(e.clientX, e.clientY); } });
+  el.stage.addEventListener('wheel', function (e) {
+    e.preventDefault(); var r = el.stage.getBoundingClientRect(), k = Math.max(V.fit * 0.8, Math.min(V.fit * 10, V.k * Math.exp(-e.deltaY * 0.0015))), px = e.clientX - r.left, py = e.clientY - r.top;
+    V.x = px - (px - V.x) * (k / V.k); V.y = py - (py - V.y) * (k / V.k); V.k = k; clampView(); applyView();
+  }, { passive: false });
+
+  /* ---------- review ---------- */
+  var WARN = {
+    blank: ['This page looks blank.', true], tooDark: ['Too dark. Retake it with more light on the page.', true],
+    overexposed: ['Too bright. Retake it with less light on the page.', true], lowContrast: ['Low contrast. Faint writing may be lost.', false],
+    veryNoisy: ['Grainy photo. Retake it in better light.', false], glare: ['Glare may hide writing under the bright spot.', false],
+    clippedEdge: ['Writing reaches the edge. Check that nothing is cut off.', false]
+  };
+  function renderNote(pg) {
+    var n = el.note, msgs = [];
+    if (pg.state === 'error') msgs.push(['This page failed to process.', null]);
+    if (pg.low) msgs.push(['The page edges were not found. Check the crop.', ['Crop', openCrop]]);
+    if (pg.quality && pg.mode !== 'gray') for (var k in WARN) if (pg.quality[k]) msgs.push([WARN[k][0], k === 'blank' ? ['Remove', deletePage] : null]);
+    if (!msgs.length || pg._noteSeen) { n.hidden = true; return; }
+    n.innerHTML = ''; var m = msgs[0], t = document.createElement('span'); t.textContent = m[0]; n.appendChild(t);
+    var x = document.createElement('button'); x.textContent = 'Dismiss'; x.onclick = function () { pg._noteSeen = true; n.hidden = true; }; n.appendChild(x);
+    if (m[1]) { var b = document.createElement('button'); b.textContent = m[1][0]; b.onclick = m[1][1]; n.appendChild(b); }
+    n.style.top = el.top.offsetHeight + 'px'; n.hidden = false;
+  }
+  function onPageReady(pg, gray) {
+    if (pg === S.pages[S.cur]) { drawGray(gray, pg.w, pg.h); renderNote(pg); } else { makeGrayThumb(pg, gray); }
+  }
+  function makeGrayThumb(pg, gray) {
+    var tw = 64, th = Math.round(64 * pg.h / pg.w), c = document.createElement('canvas'); c.width = tw; c.height = th;
+    var x = c.getContext('2d'), id = x.createImageData(tw, th), d = id.data, sx = pg.w / tw, sy = pg.h / th;
+    for (var yy = 0; yy < th; yy++) for (var xx = 0; xx < tw; xx++) {
+      var x0 = Math.floor(xx * sx), y0 = Math.floor(yy * sy), s = 0, cnt = 0;
+      for (var j = 0; j < 4; j++) for (var i = 0; i < 4; i++) { var px = Math.min(pg.w - 1, x0 + Math.floor(i * sx / 4)), py = Math.min(pg.h - 1, y0 + Math.floor(j * sy / 4)); s += gray[py * pg.w + px]; cnt++; }
+      var v = s / cnt, o = (yy * tw + xx) * 4; d[o] = d[o + 1] = d[o + 2] = v; d[o + 3] = 255;
+    }
+    x.putImageData(id, 0, 0); pg.thumb = c.toDataURL('image/jpeg', 0.7); c.width = c.height = 0;
+  }
+  async function showPage() {
+    var pg = S.pages[S.cur];
+    if (!pg) { goHome(); return; }
+    el.pos.textContent = (S.cur + 1) + ' of ' + S.pages.length; el.note.hidden = true;
+    if (pg.state === 'ready') {
+      var r = await callWorker(pg.worker, { type: 'shape', id: pg.id, opts: optsNow(), mode: pg.mode });
+      if (pg !== S.pages[S.cur]) return;
+      pg.quality = r.quality; drawGray(new Uint8Array(r.gray), pg.w, pg.h); renderNote(pg);
+    } else { view.w = 0; el.view.width = 1; el.view.height = 1; }
+    updateBar(); pump();
+  }
+  function updateBar() {
+    var ready = S.pages.length > 0 && S.pages.every(function (p) { return p.state === 'ready' || p.state === 'error'; });
+    byId('bSave').disabled = !ready; byId('bSave').textContent = ready ? 'Save \u201c' + (S.pendingName || nextName()) + '\u201d' : 'Working';
+    byId('bPrev').disabled = S.cur === 0; byId('bNext').disabled = S.cur >= S.pages.length - 1;
+  }
+  function go(i) { if (i < 0 || i >= S.pages.length) return; S.cur = i; view.w = 0; showPage(); renderStrip(); }
+  byId('bPrev').onclick = function () { go(S.cur - 1); };
+  byId('bNext').onclick = function () { go(S.cur + 1); };
+  function closeSheets() { el.sTools.hidden = true; el.sAdj.hidden = true; }
+  byId('bTools').onclick = function () { el.sAdj.hidden = true; el.sTools.hidden = !el.sTools.hidden; document.body.classList.remove('off'); renderStrip(); };
+  byId('bAdj').onclick = function () { el.sTools.hidden = true; el.sAdj.hidden = !el.sAdj.hidden; document.body.classList.remove('off'); };
+  byId('tClose').onclick = closeSheets; byId('aClose').onclick = closeSheets;
+  byId('bBack').onclick = function () { closeSheets(); el.sRes.hidden = true; goHome(); };
+
+  function renderStrip() {
+    var s = byId('strip'); s.innerHTML = '';
+    S.pages.forEach(function (p, i) {
+      var d = document.createElement('div'); d.className = 'th'; var src = p.thumb || p.thumbSrc; if (src) d.style.backgroundImage = 'url(' + src + ')';
+      if (i === S.cur) d.style.outline = '3px solid #000'; if (p.state === 'error' || p.low) { var w = document.createElement('b'); w.textContent = '!'; d.appendChild(w); }
+      d.onclick = function () { go(i); }; s.appendChild(d);
+    });
+    var pg = S.pages[S.cur]; byId('tInfo').textContent = pg ? 'Page ' + (S.cur + 1) + ' of ' + S.pages.length + (pg.dpi ? ', ' + Math.round(pg.dpi) + ' dpi' : '') : '';
+    byId('tMode').textContent = pg && pg.mode === 'gray' ? 'Ink mode' : 'Photo mode';
+  }
+  function swapPages(a, b) { var t = S.pages[a]; S.pages[a] = S.pages[b]; S.pages[b] = t; }
+  byId('tUp').onclick = function () { if (S.cur > 0) { swapPages(S.cur, S.cur - 1); S.cur--; S.pdf = null; showPage(); renderStrip(); } };
+  byId('tDn').onclick = function () { if (S.cur < S.pages.length - 1) { swapPages(S.cur, S.cur + 1); S.cur++; S.pdf = null; showPage(); renderStrip(); } };
+  function deletePage() {
+    if (!S.pages.length) return; if (S.pages.length === 1 && !confirm('Delete the only page?')) return;
+    var pg = S.pages.splice(S.cur, 1)[0]; if (pg.worker) pg.worker.postMessage({ type: 'drop', id: pg.id, rid: 0 });
+    if (S.cur >= S.pages.length) S.cur = Math.max(0, S.pages.length - 1); view.w = 0; S.pdf = null; toast('Page deleted');
+    if (!S.pages.length) { goHome(); return; } showPage(); renderStrip();
+  }
+  byId('tDel').onclick = deletePage;
+  function reprocess(pg, patch) {
+    for (var k in patch) pg[k] = patch[k];
+    if (pg.worker) pg.worker.postMessage({ type: 'drop', id: pg.id, rid: 0 });
+    pg.state = 'new'; pg.thumb = null; pg._noteSeen = false; S.pdf = null; view.w = 0; el.view.width = 1; closeSheets(); updateBar(); pump();
+  }
+  byId('tRot').onclick = function () { var pg = S.pages[S.cur]; if (pg) reprocess(pg, { rot: ((pg.rot || 0) + 1) % 4, quadOverride: undefined }); };
+  byId('tMode').onclick = function () { var pg = S.pages[S.cur]; pg.mode = pg.mode === 'gray' ? 'ink' : 'gray'; S.pdf = null; view.w = 0; renderStrip(); showPage(); };
+  var cmp = byId('tCmp');
+  cmp.addEventListener('touchstart', function (e) { e.preventDefault(); document.body.classList.add('fade'); showOriginal(true); }, { passive: false });
+  cmp.addEventListener('touchend', function (e) { e.preventDefault(); showOriginal(false); document.body.classList.remove('fade'); }, { passive: false });
+  cmp.addEventListener('mousedown', function () { document.body.classList.add('fade'); showOriginal(true); });
+  window.addEventListener('mouseup', function () { if (!el.orig.hidden) { showOriginal(false); document.body.classList.remove('fade'); } });
+
+  /* ---------- adjust ---------- */
+  function syncAdjust() {
+    var s = S.set;
+    byId('sInk').value = s.ink; byId('sBg').value = s.bg; byId('sLw').value = s.lw;
+    byId('oInk').textContent = (+s.ink).toFixed(2); byId('oBg').textContent = (+s.bg).toFixed(1); byId('oLw').textContent = (s.lw > 0 ? '+' : '') + (+s.lw).toFixed(2);
+    byId('cRules').checked = !!s.rules; byId('cStamp').checked = !!s.stamp;
+    var st = byId('stampText'); st.hidden = !s.stamp; if (st !== document.activeElement) st.value = s.stampText || '';
+    Array.prototype.forEach.call(document.querySelectorAll('#presets button'), function (b) { b.className = b.getAttribute('data-p') === s.preset ? 'on' : ''; });
+  }
+  var shapeBusy = false, shapeAgain = false;
+  async function liveShape() {
+    if (shapeBusy) { shapeAgain = true; return; } shapeBusy = true;
+    try {
+      do {
+        shapeAgain = false; var pg = S.pages[S.cur];
+        if (pg && pg.state === 'ready') { var r = await callWorker(pg.worker, { type: 'shape', id: pg.id, opts: optsNow(), mode: pg.mode }); if (pg === S.pages[S.cur]) { pg.quality = r.quality; drawGray(new Uint8Array(r.gray), pg.w, pg.h); } }
+      } while (shapeAgain);
     } finally { shapeBusy = false; }
   }
-  async function reshapeAllInBackground() {
-    S.pages.forEach((p) => (p.stale = true));
-    for (const p of S.pages) { if (!p.gray || !p.stale) continue; try { await reshape(p); p.thumb = thumbFromGray(p.gray, p.w, p.h); renderThumbs(); } catch (e) {} }
+  function onSlide() {
+    S.set.ink = +byId('sInk').value; S.set.bg = +byId('sBg').value; S.set.lw = +byId('sLw').value; S.set.rules = byId('cRules').checked; S.set.preset = 'custom';
+    syncAdjust(); persist(); S.pdf = null; liveShape();
   }
-
-  /* ---------- view: zoom / pan ---------- */
-  const V = { k: 1, x: 0, y: 0, fit: 1 };
-  function applyView() { el.pw.style.transform = `translate(${V.x}px,${V.y}px) scale(${V.k})`; }
-  function fitView() {
-    const pg = S.pages[S.cur]; if (!pg || !pg.w) return;
-    const r = el.stage.getBoundingClientRect();
-    const pad = 12;
-    V.fit = Math.min((r.width - pad * 2) / pg.w, (r.height - pad * 2) / pg.h);
-    V.k = V.fit; V.x = (r.width - pg.w * V.k) / 2; V.y = (r.height - pg.h * V.k) / 2; applyView();
-  }
-  const ptrs = new Map(); let gest = null, lastTap = 0;
-  el.stage.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button,.chip')) return;
-    el.stage.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    gest = { k: V.k, x: V.x, y: V.y, pts: [...ptrs.values()].map((p) => ({ ...p })) };
-    if (ptrs.size === 1) { const now = Date.now(); if (now - lastTap < 280) { toggleZoom(e); } lastTap = now; }
+  ['sInk', 'sBg', 'sLw'].forEach(function (id) {
+    var r = byId(id); r.addEventListener('input', onSlide);
+    r.addEventListener('touchstart', function () { document.body.classList.add('fade'); }); r.addEventListener('touchend', function () { setTimeout(function () { document.body.classList.remove('fade'); }, 500); });
   });
-  el.stage.addEventListener('pointermove', (e) => {
-    if (!ptrs.has(e.pointerId) || !gest) return;
-    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const cur = [...ptrs.values()];
-    if (cur.length === 1 && gest.pts.length === 1) { V.x = gest.x + cur[0].x - gest.pts[0].x; V.y = gest.y + cur[0].y - gest.pts[0].y; }
-    else if (cur.length >= 2 && gest.pts.length >= 2) {
-      const d0 = Math.hypot(gest.pts[0].x - gest.pts[1].x, gest.pts[0].y - gest.pts[1].y), d1 = Math.hypot(cur[0].x - cur[1].x, cur[0].y - cur[1].y);
-      const k = Math.max(V.fit * 0.8, Math.min(V.fit * 8, gest.k * d1 / d0));
-      const r = el.stage.getBoundingClientRect();
-      const c0 = { x: (gest.pts[0].x + gest.pts[1].x) / 2 - r.left, y: (gest.pts[0].y + gest.pts[1].y) / 2 - r.top };
-      const c1 = { x: (cur[0].x + cur[1].x) / 2 - r.left, y: (cur[0].y + cur[1].y) / 2 - r.top };
-      V.k = k; V.x = c1.x - (c0.x - gest.x) * (k / gest.k); V.y = c1.y - (c0.y - gest.y) * (k / gest.k);
-    }
-    applyView();
-  });
-  const endPtr = (e) => { ptrs.delete(e.pointerId); gest = ptrs.size ? { k: V.k, x: V.x, y: V.y, pts: [...ptrs.values()].map((p) => ({ ...p })) } : null; };
-  el.stage.addEventListener('pointerup', endPtr); el.stage.addEventListener('pointercancel', endPtr);
-  el.stage.addEventListener('wheel', (e) => { e.preventDefault(); const r = el.stage.getBoundingClientRect(); const k = Math.max(V.fit * 0.8, Math.min(V.fit * 8, V.k * Math.exp(-e.deltaY * 0.0015))); const cx = e.clientX - r.left, cy = e.clientY - r.top; V.x = cx - (cx - V.x) * (k / V.k); V.y = cy - (cy - V.y) * (k / V.k); V.k = k; applyView(); }, { passive: false });
-  function toggleZoom(e) {
-    const r = el.stage.getBoundingClientRect();
-    if (V.k > V.fit * 1.3) { fitView(); return; }
-    const k = V.fit * 2.6, cx = e.clientX - r.left, cy = e.clientY - r.top;
-    V.x = cx - (cx - V.x) * (k / V.k); V.y = cy - (cy - V.y) * (k / V.k); V.k = k; applyView();
-  }
+  byId('cRules').addEventListener('change', onSlide);
+  byId('cStamp').addEventListener('change', function () { S.set.stamp = this.checked; syncAdjust(); persist(); S.pdf = null; liveShape(); });
+  byId('stampText').addEventListener('input', function () { S.set.stampText = this.value; persist(); S.pdf = null; liveShape(); });
+  Array.prototype.forEach.call(document.querySelectorAll('#presets button'), function (b) { b.addEventListener('click', function () { var p = PRESETS[b.getAttribute('data-p')]; S.set.preset = b.getAttribute('data-p'); S.set.ink = p.ink; S.set.bg = p.bg; S.set.lw = p.lw; syncAdjust(); persist(); S.pdf = null; liveShape(); }); });
 
-  /* ---------- review UI ---------- */
-  const WARN = {
-    blank: ['This page looks blank.', true],
-    tooDark: ['Too dark. Retake it with more light on the page.', true],
-    overexposed: ['Too bright. Retake it with less light on the page.', true],
-    lowContrast: ['Low contrast. Faint writing may be lost.', false],
-    veryNoisy: ['Grainy photo. Retake it in better light.', false],
-    glare: ['Glare may hide writing under the bright spot.', false],
-    clippedEdge: ['Writing reaches the edge. Check that nothing is cut off.', false],
-  };
-  function renderBanner(pg) {
-    el.banner.innerHTML = '';
-    const add = (text, bad, action) => {
-      const d = document.createElement('div'); d.className = 'chip' + (bad ? ' bad' : ''); d.textContent = text;
-      if (action) { const b = document.createElement('button'); b.textContent = action.label; b.onclick = action.fn; d.appendChild(b); }
-      el.banner.appendChild(d);
-    };
-    if (pg.error) add('This page failed to process.', true);
-    if (pg.lowConfidence) add('The page edges were not found. Check the crop.', false, { label: 'Crop', fn: openCrop });
-    if (pg.quality && pg.mode !== 'gray') for (const k of Object.keys(WARN)) if (pg.quality[k]) add(WARN[k][0], WARN[k][1], k === 'blank' ? { label: 'Remove', fn: deletePage } : null);
-  }
-  function drawCurrent() {
-    const pg = S.pages[S.cur]; if (!pg || !pg.gray) return;
-    if (el.view.width !== pg.w || el.view.height !== pg.h) { grayToCanvas(pg.gray, pg.w, pg.h, el.view); el.orig.style.width = pg.w + 'px'; el.orig.style.height = pg.h + 'px'; fitView(); }
-    else grayToCanvas(pg.gray, pg.w, pg.h, el.view);
-    drawStampPreview(pg, S.cur);
-    renderBanner(pg);
-  }
-  function showPage() {
-    const pg = S.pages[S.cur];
-    if (!pg) { el.revSub.textContent = 'No pages'; return; }
-    el.revSub.textContent = (S.cur + 1) + ' of ' + S.pages.length;
-    $('#tModeLbl').textContent = pg.mode === 'gray' ? 'Clean' : 'Photo';
-    if (pg.gray) { if (pg.stale) reshape(pg).then(drawCurrent); el.view.width = 0; drawCurrent(); el.orig.src = pg.rectUrl || ''; }
-    renderThumbs();
-    const sel = el.thumbs.querySelector('.sel'); if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest' });
-    $('#tPrev').disabled = S.cur === 0; $('#tNext').disabled = S.cur >= S.pages.length - 1;
-    $('#tLeft').disabled = S.cur === 0; $('#tRight').disabled = S.cur >= S.pages.length - 1;
-    updateAction();
-  }
-  function renderThumbs() {
-    el.thumbs.innerHTML = '';
-    S.pages.forEach((p, i) => {
-      const d = document.createElement('div'); d.className = 'th' + (i === S.cur ? ' sel' : '');
-      if (p.thumb) d.style.backgroundImage = `url(${p.thumb})`;
-      const n = document.createElement('div'); n.className = 'n'; n.textContent = i + 1; d.appendChild(n);
-      if (p.quality && (p.quality.blank || p.quality.tooDark || p.quality.overexposed || p.lowConfidence || p.error)) { const w = document.createElement('div'); w.className = 'w'; d.appendChild(w); }
-      d.onclick = () => { S.cur = i; showPage(); };
-      el.thumbs.appendChild(d);
-    });
-    updateAction();
-  }
-  // primary action on the review screen: one tap to upload with smart defaults
-  const quickName = () => S.suggestedName || defaultName();
-  function updateAction() {
-    const ready = S.pages.length > 0 && !S.pages.some((p) => !p.gray && !p.error);
-    const q = $('#btnQuick'); $('#btnNext').disabled = !ready;
-    if (!ready) { q.disabled = true; q.textContent = S.pages.length ? 'Cleaning pages' : 'No pages'; return; }
-    const f = S.folders.find((x) => x.id === S.folderId);
-    q.disabled = false;
-    if (f) {
-      q.dataset.mode = 'quick'; q.textContent = '';
-      const s1 = document.createElement('span'); s1.textContent = 'Save to ' + f.name;
-      const s2 = document.createElement('small'); s2.textContent = quickName();
-      q.append(s1, s2);
-    } else { q.dataset.mode = 'open'; q.textContent = 'Choose course and name'; }
-  }
-  $('#btnQuick').onclick = () => { if ($('#btnQuick').dataset.mode === 'quick') { $('#fname').value = quickName(); openSave(true); } else openSave(false); };
-  const stampLabel = (i) => { const t = (S.settings.stampText || '').trim(); return (t ? t + '   ' : '') + 'Page ' + (i + 1) + ' of ' + S.pages.length; };
-  function drawStampPreview(pg, i) {
-    if (!S.settings.stamp) return;
-    const ctx = el.view.getContext('2d'); const dpi = pg.dpi || S.previewDpi;
-    ctx.font = Math.round(dpi * 0.13) + 'px -apple-system,Helvetica,Arial,sans-serif'; ctx.fillStyle = '#222'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(stampLabel(i), pg.w - dpi * 0.4, dpi * 0.42);
-  }
-  function stampGray(gray, w, h, dpi, text) {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const ctx = c.getContext('2d'); const id = ctx.createImageData(w, h); const d = id.data;
-    for (let i = 0, j = 0; i < gray.length; i++, j += 4) { const v = gray[i]; d[j] = d[j + 1] = d[j + 2] = v; d[j + 3] = 255; }
-    ctx.putImageData(id, 0, 0);
-    ctx.font = Math.round(dpi * 0.13) + 'px -apple-system,Helvetica,Arial,sans-serif'; ctx.fillStyle = '#222'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(text, w - dpi * 0.4, dpi * 0.42);
-    const o = ctx.getImageData(0, 0, w, h).data; const g = new Uint8Array(w * h);
-    for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = o[j];
-    c.width = c.height = 0; return g;
-  }
-  function syncControls() {
-    const s = S.settings;
-    $('#sStrength').value = s.strength; $('#sClean').value = s.clean; $('#sWeight').value = s.weight; $('#cRules').checked = s.rules;
-    $('#cStamp').checked = !!s.stamp; $('#stampText').hidden = !s.stamp; if ($('#stampText') !== document.activeElement) $('#stampText').value = s.stampText || '';
-    $('#oStrength').textContent = s.strength.toFixed(2); $('#oClean').textContent = s.clean.toFixed(1); $('#oWeight').textContent = (s.weight > 0 ? '+' : '') + s.weight.toFixed(2);
-    document.querySelectorAll('#preset button').forEach((b) => b.classList.toggle('on', b.dataset.p === s.preset));
-  }
-  function onSetting(commit) {
-    S.settings.strength = +$('#sStrength').value; S.settings.clean = +$('#sClean').value; S.settings.weight = +$('#sWeight').value; S.settings.rules = $('#cRules').checked; S.settings.preset = 'custom';
-    syncControls(); liveReshape(); if (commit) reshapeAllInBackground();
-  }
-  ['#sStrength', '#sClean', '#sWeight'].forEach((id) => { $(id).addEventListener('input', () => onSetting(false)); $(id).addEventListener('change', () => onSetting(true)); });
-  $('#cRules').addEventListener('change', () => onSetting(true));
-  $('#cStamp').addEventListener('change', () => { S.settings.stamp = $('#cStamp').checked; syncControls(); drawCurrent(); persist(); });
-  $('#stampText').addEventListener('input', () => { S.settings.stampText = $('#stampText').value; drawCurrent(); persist(); });
-  $('#toggleAdv').onclick = () => { const a = $('#adv'); a.hidden = !a.hidden; $('#toggleAdv').textContent = a.hidden ? 'Adjust' : 'Done'; setTimeout(fitView, 30); };
-  document.querySelectorAll('#preset button').forEach((b) => b.addEventListener('click', () => { Object.assign(S.settings, PRESETS[b.dataset.p], { preset: b.dataset.p }); syncControls(); liveReshape(); reshapeAllInBackground(); }));
-  const hold = (on) => { el.orig.hidden = !on; el.view.style.visibility = on ? 'hidden' : 'visible'; };
-  const cmp = $('#btnCompare');
-  ['pointerdown'].forEach((t) => cmp.addEventListener(t, (e) => { e.stopPropagation(); hold(true); }));
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach((t) => cmp.addEventListener(t, () => hold(false)));
-  $('#tPrev').onclick = () => { if (S.cur > 0) { S.cur--; showPage(); } };
-  $('#tNext').onclick = () => { if (S.cur < S.pages.length - 1) { S.cur++; showPage(); } };
-  $('#tLeft').onclick = () => { if (S.cur > 0) { [S.pages[S.cur - 1], S.pages[S.cur]] = [S.pages[S.cur], S.pages[S.cur - 1]]; S.cur--; showPage(); } };
-  $('#tRight').onclick = () => { if (S.cur < S.pages.length - 1) { [S.pages[S.cur + 1], S.pages[S.cur]] = [S.pages[S.cur], S.pages[S.cur + 1]]; S.cur++; showPage(); } };
-  function deletePage() {
-    if (!S.pages.length) return;
-    if (S.pages.length === 1 && !confirm('Delete the only page?')) return;
-    const [pg] = S.pages.splice(S.cur, 1); if (pg.worker) pg.worker.postMessage({ type: 'drop', id: pg.id, rid: 0 });
-    if (S.cur >= S.pages.length) S.cur = Math.max(0, S.pages.length - 1);
-    el.view.width = 0; showPage(); toast('Page deleted');
-  }
-  $('#tDel').onclick = deletePage;
-  $('#tRot').onclick = async () => {
-    const pg = S.pages[S.cur]; if (!pg || !pg.gray) return;
-    pg.rot = ((pg.rot || 0) + 1) % 4; setBusy('Rotating page', 0.4);
-    try { await processPage(pg, null); } catch (e) { toast('Rotate failed'); } finally { el.busy.hidden = true; }
-    el.view.width = 0; showPage();
-  };
-  $('#tMode').onclick = async () => {
-    const pg = S.pages[S.cur]; pg.mode = pg.mode === 'gray' ? 'ink' : 'gray';
-    setBusy('Updating page', 0.3); try { await reshape(pg); pg.thumb = thumbFromGray(pg.gray, pg.w, pg.h); } finally { el.busy.hidden = true; }
-    el.view.width = 0; showPage();
-  };
-  $('#btnCancel').onclick = () => { if (confirm('Discard these scans?')) finish({ status: 'cancelled' }); };
-  window.addEventListener('resize', () => { if (!el.review.hidden) fitView(); });
-
-  /* ---------- crop editor ---------- */
-  const C = { img: null, quad: null, drag: -1, scale: 1, ox: 0, oy: 0 };
+  /* ---------- crop ---------- */
+  var C = { quad: null, w: 0, h: 0, drag: -1, img: null };
   async function openCrop() {
-    const pg = S.pages[S.cur]; if (!pg) return;
-    $('#crop').hidden = false;
-    const dec = await decode(pg.blob, 1400, pg.rot || 0);
-    const cv = $('#cropCanvas'); cv.width = dec.w; cv.height = dec.h;
-    cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(dec.rgba), dec.w, dec.h), 0, 0);
-    const stage = $('#cropStage').getBoundingClientRect();
-    const k = Math.min((stage.width - 24) / dec.w, (stage.height - 24) / dec.h);
-    cv.style.width = dec.w * k + 'px'; cv.style.height = dec.h * k + 'px';
-    C.w = dec.w; C.h = dec.h; C.k = k;
-    C.quad = (pg.fullFrame ? [[0.03, 0.03], [0.97, 0.03], [0.97, 0.97], [0.03, 0.97]] : pg.quadN).map((p) => [p[0], p[1]]);
-    drawCrop();
+    var pg = S.pages[S.cur]; if (!pg) return; closeSheets();
+    var d = await decodePhoto(pg.blob, pg.rot, 1000), cv = byId('cc'), s = byId('cstage');
+    show('crop'); cv.width = d.w; cv.height = d.h; var cx = cv.getContext('2d'), im = cx.createImageData(d.w, d.h); im.data.set(new Uint8Array(d.buf)); cx.putImageData(im, 0, 0);
+    var k = Math.min((s.clientWidth - 16) / d.w, (s.clientHeight - 16) / d.h); cv.style.width = Math.round(d.w * k) + 'px'; cv.style.height = Math.round(d.h * k) + 'px';
+    C.w = d.w; C.h = d.h; C.quad = (pg.quadN || [[0.04, 0.04], [0.96, 0.04], [0.96, 0.96], [0.04, 0.96]]).map(function (q) { return [q[0], q[1]]; }); C.img = im; drawCrop();
   }
   function drawCrop() {
-    const cv = $('#cropCanvas'); const ctx = cv.getContext('2d');
-    // redraw base image from the stored decode is avoided; overlay via a second canvas layer
-    let ov = $('#cropOverlay');
-    if (!ov) { ov = document.createElement('canvas'); ov.id = 'cropOverlay'; ov.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);'; $('#cropStage').appendChild(ov); ov.addEventListener('pointerdown', cropDown); ov.addEventListener('pointermove', cropMove); ov.addEventListener('pointerup', () => (C.drag = -1)); ov.addEventListener('pointercancel', () => (C.drag = -1)); }
-    ov.width = C.w; ov.height = C.h; ov.style.width = cv.style.width; ov.style.height = cv.style.height;
-    const o = ov.getContext('2d'); const q = C.quad.map((p) => [p[0] * C.w, p[1] * C.h]);
-    o.clearRect(0, 0, C.w, C.h); o.lineWidth = Math.max(2, C.w / 300); o.strokeStyle = '#1d6bff'; o.fillStyle = 'rgba(29,107,255,.12)';
-    o.beginPath(); q.forEach((p, i) => (i ? o.lineTo(p[0], p[1]) : o.moveTo(p[0], p[1]))); o.closePath(); o.fill(); o.stroke();
-    const r = Math.max(10, C.w / 55); q.forEach((p) => { o.beginPath(); o.arc(p[0], p[1], r, 0, 7); o.fillStyle = '#fff'; o.fill(); o.stroke(); });
+    var cv = byId('cc'), x = cv.getContext('2d'); x.putImageData(C.img, 0, 0);
+    var q = C.quad.map(function (p) { return [p[0] * C.w, p[1] * C.h]; });
+    x.lineWidth = Math.max(2, C.w / 250); x.strokeStyle = '#d00'; x.beginPath(); q.forEach(function (p, i) { if (i) x.lineTo(p[0], p[1]); else x.moveTo(p[0], p[1]); }); x.closePath(); x.stroke();
+    var r = Math.max(10, C.w / 40); q.forEach(function (p) { x.beginPath(); x.arc(p[0], p[1], r, 0, 7); x.fillStyle = '#fff'; x.fill(); x.stroke(); });
   }
-  function cropPos(e) { const ov = $('#cropOverlay'); const r = ov.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; }
-  function cropDown(e) { const p = cropPos(e); let best = -1, bd = 0.09; C.quad.forEach((q, i) => { const d = Math.hypot(q[0] - p[0], (q[1] - p[1]) * (C.h / C.w)); if (d < bd) { bd = d; best = i; } }); C.drag = best; if (best >= 0) e.target.setPointerCapture(e.pointerId); }
-  function cropMove(e) { if (C.drag < 0) return; const p = cropPos(e); C.quad[C.drag] = [Math.min(1, Math.max(0, p[0])), Math.min(1, Math.max(0, p[1]))]; drawCrop(); }
-  $('#cropCancel').onclick = () => { $('#crop').hidden = true; };
-  $('#cropAuto').onclick = () => { applyCrop(null); };
-  $('#cropApply').onclick = () => applyCrop(C.quad);
-  async function applyCrop(q) {
-    $('#crop').hidden = true; const pg = S.pages[S.cur]; setBusy('Reprocessing page', 0.4);
-    try { await processPage(pg, q); pg.lowConfidence = false; } catch (e) { toast('Crop failed'); } finally { el.busy.hidden = true; }
-    el.view.width = 0; showPage();
-  }
-  $('#tCrop').onclick = openCrop;
+  function cropPos(cx, cy) { var r = byId('cc').getBoundingClientRect(); return [(cx - r.left) / r.width, (cy - r.top) / r.height]; }
+  function cropDown(cx, cy) { var p = cropPos(cx, cy), best = -1, bd = 0.12; C.quad.forEach(function (q, i) { var d = Math.hypot(q[0] - p[0], (q[1] - p[1]) * (C.h / C.w)); if (d < bd) { bd = d; best = i; } }); C.drag = best; }
+  function cropMove(cx, cy) { if (C.drag < 0) return; var p = cropPos(cx, cy); C.quad[C.drag] = [Math.min(1, Math.max(0, p[0])), Math.min(1, Math.max(0, p[1]))]; drawCrop(); }
+  var cs = byId('cstage');
+  cs.addEventListener('touchstart', function (e) { e.preventDefault(); cropDown(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+  cs.addEventListener('touchmove', function (e) { e.preventDefault(); cropMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+  cs.addEventListener('touchend', function () { C.drag = -1; });
+  cs.addEventListener('mousedown', function (e) { cropDown(e.clientX, e.clientY); }); window.addEventListener('mousemove', function (e) { cropMove(e.clientX, e.clientY); }); window.addEventListener('mouseup', function () { C.drag = -1; });
+  function leaveCrop() { byId('cc').width = 0; show('rev'); fitView(); }
+  byId('cCancel').onclick = leaveCrop;
+  byId('cAuto').onclick = function () { var pg = S.pages[S.cur]; leaveCrop(); reprocess(pg, { quadOverride: undefined }); };
+  byId('cApply').onclick = function () { var pg = S.pages[S.cur], q = C.quad; leaveCrop(); reprocess(pg, { quadOverride: q }); };
+  byId('tCrop').onclick = openCrop;
 
-  /* ---------- save screen ---------- */
-  function defaultName() {
-    const d = new Date(); const p = (n) => String(n).padStart(2, '0');
-    return (S.cfg.namePrefix || 'HW') + ' ' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  /* ---------- save: one tap, then the name and size can still change ---------- */
+  function makeStamp(i, dpi) {
+    if (!S.set.stamp) return null;
+    var text = stampLabel(i), size = Math.round(dpi * 0.13), c = document.createElement('canvas'), x = c.getContext('2d');
+    x.font = size + 'px Georgia,serif'; var w = Math.ceil(x.measureText(text).width) + 6, h = Math.ceil(size * 1.5);
+    c.width = w; c.height = h; x = c.getContext('2d'); x.font = size + 'px Georgia,serif'; x.fillStyle = '#000'; x.fillText(text, 2, Math.round(size * 1.1));
+    var d = x.getImageData(0, 0, w, h).data, m = new Uint8Array(w * h); for (var j = 0; j < m.length; j++) m[j] = d[j * 4 + 3];
+    c.width = c.height = 0; return { w: w, h: h, data: m, right: Math.round(dpi * 0.4), top: Math.round(dpi * 0.25) };
   }
-  function openSave(autoStart) {
-    el.review.hidden = true; el.save.hidden = false; $('#saveForm').hidden = false; $('#saveRun').hidden = true; $('#saveFoot').hidden = false; $('#runFoot').hidden = true;
-    $('#saveSub').textContent = S.pages.length + (S.pages.length === 1 ? ' page' : ' pages');
-    if (!$('#fname').value) $('#fname').value = quickName();
-    localFolders(); renderFolders(); suggestName(); syncSaveExtras(); validateSave();
-    if (autoStart === true && S.folderId && $('#fname').value.trim()) build();
+  function resText(head, text, frac, form, fail) {
+    byId('rHead').textContent = head; byId('rText').textContent = text;
+    byId('rBarWrap').hidden = frac < 0; if (frac >= 0) byId('rBar').style.width = Math.round(frac * 100) + '%';
+    byId('rForm').hidden = !form; byId('rFail').hidden = !fail;
   }
-  const QNOTE = { 300: 'Sharpest. About 0.35 MB a page.', 200: 'Fine for most instructors. About 0.15 MB a page.', 150: 'Smallest. About 0.09 MB a page.' };
-  function syncSaveExtras() {
-    document.querySelectorAll('#qual button').forEach((b) => b.classList.toggle('on', +b.dataset.q === S.settings.quality));
-    $('#qualNote').textContent = (QNOTE[S.settings.quality] || '') + ' Anything over ' + (S.cfg.maxMB || 12) + ' MB shrinks on its own.';
-  }
-  document.querySelectorAll('#qual button').forEach((b) => b.addEventListener('click', () => { S.settings.quality = +b.dataset.q; S.pdf = null; syncSaveExtras(); persist(); }));
-
-  // courses and a short file history live on the phone; the history drives the numbering
-  function localFolders() {
-    const L = (S.settings.local = S.settings.local || { courses: [], history: [] });
-    S.folders = L.courses.map((c) => ({ id: c.name, name: c.name, path: c.name, last: c.last || 0 })).sort((a, b) => (b.last - a.last) || a.name.localeCompare(b.name));
-    S.recent = L.history.map((h) => ({ name: h.name + '.pdf', path: h.course, at: h.at }));
-    if (!S.folders.find((x) => x.id === S.folderId)) S.folderId = S.folders[0] && S.folders[0].id;
-  }
-  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  function renderFolders() {
-    const q = $('#fsearch').value.trim().toLowerCase();
-    const list = S.folders.filter((f) => !q || f.name.toLowerCase().includes(q));
-    $('#folders').innerHTML = '';
-    if (!list.length) { $('#folders').innerHTML = '<div class="empty">' + (S.folders.length ? 'No match.' : 'No courses yet. Add one below.') + '</div>'; return; }
-    list.forEach((f) => {
-      const d = document.createElement('div'); d.className = 'item' + (f.id === S.folderId ? ' sel' : '');
-      d.innerHTML = '<div class="t"><b>' + escapeHtml(f.name) + '</b>' + (f.last ? '<span>Used ' + ago(f.last) + '</span>' : '') + '</div><svg class="tick" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
-      d.onclick = () => { S.folderId = f.id; renderFolders(); suggestName(); validateSave(); };
-      $('#folders').appendChild(d);
-    });
-  }
-  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); if (m < 60) return Math.max(1, m) + ' min ago'; const h = Math.round(m / 60); if (h < 48) return h + ' h ago'; return Math.round(h / 24) + ' d ago'; };
-  function suggestName() { try { suggestName0(); } finally { updateAction(); } }
-  function suggestName0() {
-    S.suggestedName = null;
-    const f = S.folders.find((x) => x.id === S.folderId); const btn = $('#suggest'); btn.hidden = true;
-    if (!f) return;
-    const prev = (S.recent || []).find((r) => r.path === f.name);
-    if (!prev) return;
-    const base = prev.name.replace(/\.pdf$/i, '');
-    const m = base.match(/(\d+)(?!.*\d)/);
-    if (!m) return;
-    const next = base.slice(0, m.index) + (parseInt(m[1], 10) + 1) + base.slice(m.index + m[1].length);
-    S.suggestedName = next; btn.textContent = 'Use "' + next + '", the next after "' + base + '"'; btn.hidden = false; btn.onclick = () => { $('#fname').value = next; validateSave(); };
-  }
-  function validateSave() { $('#btnUpload').disabled = !($('#fname').value.trim() && S.folderId); }
-  $('#fname').addEventListener('input', validateSave); $('#fsearch').addEventListener('input', renderFolders);
-  $('#btnBack').onclick = () => { el.save.hidden = true; el.review.hidden = false; fitView(); };
-  $('#btnNewFolder').onclick = () => {
-    const name = $('#newFolder').value.trim(); if (!name) return;
-    const L = (S.settings.local = S.settings.local || { courses: [], history: [] });
-    if (!L.courses.find((c) => c.name === name)) L.courses.push({ name, last: 0 });
-    persist(); localFolders(); S.folderId = name; $('#newFolder').value = ''; renderFolders(); suggestName(); validateSave(); toast('Course added');
-  };
-
-  /* ---------- build the PDF ---------- */
-  const fmtMB = (n) => (n / 1048576).toFixed(n > 1e7 ? 1 : 2) + ' MB';
-  function bytesToB64(u8) { let s = ''; const CH = 0x8000; for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); }
-  async function buildPdf_(dpi) {
-    const opts = optsFromSettings();
-    const out = new Array(S.pages.length);
-    let idx = 0, done = 0;
-    const lanes = Math.max(1, Math.min(workers.length, (navigator.hardwareConcurrency || 4) >= 6 ? 2 : 1));
-    await Promise.all(Array.from({ length: lanes }, async () => {
-      while (idx < S.pages.length) {
-        const i = idx++; const pg = S.pages[i];
-        const dec = await decode(pg.blob, 4200, pg.rot || 0);
-        const r = await call({ type: 'export', id: pg.id, rgba: dec.rgba, w: dec.w, h: dec.h, dpi, quadN: pg.fullFrame ? null : pg.quadN, opts, mode: pg.mode }, 'exported', [dec.rgba]);
-        let g = new Uint8Array(r.gray);
-        if (S.settings.stamp) g = stampGray(g, r.w, r.h, r.dpi || dpi, stampLabel(i));
-        out[i] = await compressPage(g, r.w, r.h, r.dpi || dpi);
-        done++; $('#runBar').style.width = Math.round(done / S.pages.length * 100) + '%';
-        $('#runMsg').textContent = 'Page ' + done + ' of ' + S.pages.length;
-      }
-    }));
-    return buildPdf(out, { title: $('#fname').value.trim() });
-  }
-  const sigNow = () => JSON.stringify([S.pages.map((p) => [p.id, p.mode, p.quadN, p.rot || 0]), optsFromSettings(), S.settings.quality, S.settings.stamp, S.settings.stamp && S.settings.stampText]);
-  async function build() {
-    const name = $('#fname').value.trim(), folder = S.folders.find((f) => f.id === S.folderId);
-    $('#saveForm').hidden = true; $('#saveRun').hidden = false; $('#saveFoot').hidden = true; $('#runFoot').hidden = true;
-    $('#resultBox').innerHTML = ''; $('#runBar').parentElement.hidden = false; $('#runBar').style.width = '2%'; $('#runMsg').textContent = 'Building the PDF';
-    $('#saveSub').textContent = 'Building the PDF';
+  async function savePdf(size) {
+    if (S.busy) return; S.busy = true; closeSheets(); document.body.classList.remove('off'); el.sRes.hidden = false;
+    var n = S.pages.length, pages = [];
+    S.size = size || S.set.size || 200; resText('Building the PDF', 'Page 1 of ' + n, 0, false, false);
     try {
-      if (!S.pdf || S.pdf.sig !== sigNow()) {
-        let dpi = S.settings.quality || 300; const maxBytes = (S.cfg.maxMB || 12) * 1048576;
-        let bytes = await buildPdf_(dpi);
-        while (bytes.length > maxBytes && dpi > 150) {
-          dpi = dpi > 250 ? 250 : dpi > 200 ? 200 : 150;
-          $('#runMsg').textContent = 'Over ' + (S.cfg.maxMB || 12) + ' MB. Rebuilding at ' + dpi + ' dpi.'; $('#runBar').style.width = '2%';
-          bytes = await buildPdf_(dpi);
+      for (var i = 0; i < n; i++) {
+        var pg = S.pages[i], w = pg.worker, outDpi = S.size, res;
+        var onP = (function (ii) { return function (f, lab) { resText('Building the PDF', 'Page ' + (ii + 1) + ' of ' + n + '. ' + (lab || ''), (ii + f) / n, false, false); }; })(i);
+        if (outDpi > pg.dpi * 1.15) {   // more than the working resolution: read the photo again at full size
+          var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * outDpi * 1.3));
+          res = await callWorker(w, { type: 'exportFull', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: pg.quadN, dpi: outDpi, opts: optsNow(), mode: pg.mode, stamp: makeStamp(i, outDpi) }, [d.buf], onP);
+        } else {
+          res = await callWorker(w, { type: 'export', id: pg.id, opts: optsNow(), mode: pg.mode, outDpi: outDpi, stamp: makeStamp(i, Math.min(outDpi, pg.dpi)) }, [], onP);
         }
-        S.pdf = { bytes, size: bytes.length, sig: sigNow(), dpi };
+        pages.push({ w: res.w, h: res.h, dpi: res.dpi, z: new Uint8Array(res.z) });
+        resText('Building the PDF', 'Page ' + (i + 1) + ' of ' + n, (i + 1) / n, false, false);
       }
-      ready(name, folder);
-    } catch (e) { fail(e.message || String(e)); }
+      var nm = S.pendingName || nextName();
+      S.pdf = { bytes: buildPdf(pages, { title: nm }), size: 0, dpi: S.size, pages: n }; S.pdf.size = S.pdf.bytes.length;
+      S.busy = false; showResult();
+    } catch (e) { console.error(e); S.busy = false; resText('Could not build the PDF', String(e.message || e).slice(0, 160), -1, false, true); }
   }
-  function ready(name, folder) {
-    const L = (S.settings.local = S.settings.local || { courses: [], history: [] });
-    const c = L.courses.find((x) => x.name === folder.name); if (c) c.last = Date.now();
-    L.history.unshift({ name, course: folder.name, at: Date.now() }); L.history = L.history.slice(0, 60); persist();
-    S.done = { status: 'saved', name, path: folder.name, folderId: folder.id, pages: S.pages.length, size: S.pdf.size };
-    $('#saveSub').textContent = 'Ready';
-    $('#runBar').parentElement.hidden = true; $('#runMsg').textContent = ''; $('#saveRun').scrollTop = 0;
-    const msg = completion ? 'Saved on this phone. A preview opens next, with a share button.' : 'Share it, or save it to Files.';
-    $('#resultBox').innerHTML = `<div class="result"><svg class="big" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M7 12.5l3.2 3.2L17 9"/></svg><h2>PDF ready</h2><p>${msg}</p><div class="kv"><span>File</span><span>${escapeHtml(name)}.pdf</span><span>Course</span><span>${escapeHtml(folder.name)}</span><span>Pages</span><span>${S.pages.length}</span><span>Size</span><span>${fmtMB(S.pdf.size)}</span></div></div>`;
-    $('#runFoot').hidden = false;
-    $('#runFoot').innerHTML = completion
-      ? '<button class="btn primary" id="bDone">Continue</button>'
-      : '<button class="btn primary" id="bShare">Share PDF</button><button class="btn" id="bDone">Done</button>';
-    if (!completion) $('#bShare').onclick = sharePdf;
-    $('#bDone').onclick = () => finish({ ...S.done, action: 'done' });
+  function showResult() {
+    var nm = S.pendingName || nextName(); byId('rName').value = nm; S.pendingName = nm;
+    resText('PDF ready', pageWord(S.pdf.pages) + ', ' + fmtMB(S.pdf.size) + ', ' + S.pdf.dpi + ' dpi', -1, true, false);
+    byId('rShare').textContent = completion ? 'Continue' : 'Share or save';
   }
-  function fail(msg) {
-    $('#saveSub').textContent = 'Not built';
-    $('#runBar').parentElement.hidden = true; $('#runMsg').textContent = '';
-    $('#resultBox').innerHTML = `<div class="result bad"><svg class="big" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 8l8 8M16 8l-8 8"/></svg><h2>Could not build the PDF</h2><p>${escapeHtml(msg)}</p><p>Your page photos are untouched. Try again.</p></div>`;
-    $('#runFoot').hidden = false;
-    $('#runFoot').innerHTML = '<button class="btn" id="bBack">Back</button><button class="btn primary" id="bRetry">Try again</button>';
-    $('#bBack').onclick = () => { $('#saveRun').hidden = true; $('#saveForm').hidden = false; $('#runFoot').hidden = true; $('#saveFoot').hidden = false; $('#saveSub').textContent = S.pages.length + ' pages'; };
-    $('#bRetry').onclick = () => build();
+  function cleanName(s) { return (s || '').replace(/[\\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Scan'; }
+  function bytesToB64(u8) { var s = '', CH = 0x4000; for (var i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); }
+  async function sharePdf(name) {
+    var blob = new Blob([S.pdf.bytes], { type: 'application/pdf' });
+    try { var f = new File([blob], name + '.pdf', { type: 'application/pdf' }); if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); return true; } } catch (e) { if (e && e.name === 'AbortError') return false; }
+    var u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = name + '.pdf'; a.target = '_blank'; document.body.appendChild(a); a.click(); document.body.removeChild(a); return true;
   }
-  async function sharePdf() {
-    if (!S.pdf) { toast('Nothing to save yet'); return; }
-    const f = new File([S.pdf.bytes], ($('#fname').value.trim() || 'Scan') + '.pdf', { type: 'application/pdf' });
-    try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); return; } } catch (e) { if (e.name === 'AbortError') return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
-  }
-  $('#btnUpload').onclick = build;
-  $('#btnNext').onclick = () => openSave();
-
-  /* ---------- entry points ---------- */
-  let completion = null;
-  function persist() { try { localStorage.setItem('hw_settings', JSON.stringify(S.settings)); } catch (e) {} }
-  function finish(result) {
-    result.settings = S.settings; persist();
-    if (!completion) {   // hosted page: no host to hand back to
-      if (result.action === 'done' || result.status === 'cancelled') location.reload();
-      return;
-    }
-    if (result.status === 'saved' && S.pdf) { try { result.pdfB64 = bytesToB64(S.pdf.bytes); } catch (e) {} }
-    completion(result);
-  }
-  const HW = {
-    images: [],
-    addImage(b64, type) { this.images.push(b64ToBlob(b64, type)); },
-    addBlob(blob) { this.images.push(blob); },
-    // With pages already loaded it goes straight to review. With none it opens the home screen.
-    async run(cfg, done) {
-      completion = done || null; S.cfg = cfg || {};
-      if (cfg && cfg.settings) Object.assign(S.settings, cfg.settings);
-      localFolders(); suggestName();
-      if (!this.images.length) { syncControls(); showHome(); return; }
-      const n = this.images.length;
-      S.previewDpi = n <= 12 ? 150 : n <= 24 ? 120 : 96;
-      syncControls(); startWorkers();
-      S.pages = this.images.map((blob) => ({ id: S.nextId++, blob, mode: 'ink' })); this.images = [];
-      el.review.hidden = false; renderThumbs(); showPage();
-      await processAll();
-    },
+  byId('bSave').onclick = function () {
+    S.pendingName = null;
+    if (S.pdf && S.pdf.size && S.pdf.dpi === (S.set.size || 200)) { showResult(); el.sRes.hidden = false; return; }
+    savePdf(S.set.size || 200);
   };
-  window.HW = HW;
+  byId('rShare').onclick = async function () {
+    var name = cleanName(byId('rName').value); S.set.lastName = name; persist();
+    if (completion) { finish({ status: 'saved', name: name, pages: S.pdf.pages, size: S.pdf.size, pdfB64: bytesToB64(S.pdf.bytes) }); return; }
+    await sharePdf(name);
+  };
+  byId('rSmall').onclick = function (e) { e.preventDefault(); S.set.size = 150; persist(); savePdf(150); };
+  byId('rSharp').onclick = function (e) { e.preventDefault(); S.set.size = 300; persist(); savePdf(300); };
+  byId('rRetry').onclick = function () { savePdf(S.size); };
+  byId('rBack').onclick = function (e) { e.preventDefault(); el.sRes.hidden = true; };
+  byId('rMore').onclick = function (e) { e.preventDefault(); newScan(); };
+  byId('rName').addEventListener('input', function () { S.pendingName = this.value; });
 
-  /* ---------- home: collect the pages ---------- */
-  const lp = { blobs: [], urls: [] };
+  /* ---------- home and camera ---------- */
+  var queue = [];   // photos waiting on the home screen
+  function addOne(blob) { var o = { blob: blob, thumbSrc: URL.createObjectURL(blob) }; queue.push(o); return o; }
+  function addBlobs(files) { for (var i = 0; i < files.length; i++) addOne(files[i]); renderHome(); }
   function renderHome() {
-    const box = $('#lThumbs'); box.innerHTML = '';
-    lp.blobs.forEach((bl, i) => {
-      const d = document.createElement('div'); d.className = 'lt'; d.style.backgroundImage = 'url(' + lp.urls[i] + ')';
-      const x = document.createElement('button'); x.className = 'lx'; x.setAttribute('aria-label', 'Remove page'); x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-      x.onclick = () => { URL.revokeObjectURL(lp.urls[i]); lp.blobs.splice(i, 1); lp.urls.splice(i, 1); renderHome(); };
-      d.appendChild(x); box.appendChild(d);
-    });
-    const n = lp.blobs.length;
-    $('#lSub').textContent = n ? n + (n === 1 ? ' page' : ' pages') : 'No pages yet';
-    $('#lEmpty').hidden = n > 0; $('#lGo').disabled = !n;
-    $('#lGo').textContent = n ? 'Review ' + n + (n === 1 ? ' page' : ' pages') : 'Review pages';
-    $('#lCamLive').textContent = n ? 'Take more photos' : 'Take photos';
+    var box = byId('hThumbs'); box.innerHTML = '';
+    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; var x = document.createElement('b'); x.textContent = '×'; x.onclick = function () { URL.revokeObjectURL(o.thumbSrc); queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
+    var n = queue.length + S.pages.length;
+    byId('hGo').disabled = !n; byId('hGo').textContent = n ? 'Review ' + pageWord(n) : 'Review pages';
+    byId('hHint').hidden = n > 0; byId('hClear').hidden = !n; byId('hCam').textContent = n ? 'Take more photos' : 'Take photos';
   }
-  function addPages(files) { for (const f of files) { lp.blobs.push(f); lp.urls.push(URL.createObjectURL(f)); } renderHome(); }
-  function showHome() { el.review.hidden = true; el.save.hidden = true; $('#landing').hidden = false; renderHome(); }
-  $('#lPick').addEventListener('change', (e) => { addPages([...e.target.files]); e.target.value = ''; });
-  $('#lCam').addEventListener('change', (e) => { addPages([...e.target.files]); e.target.value = ''; });
-  $('#lClose').onclick = () => finish({ status: 'cancelled' });
-  $('#lGo').onclick = () => { $('#landing').hidden = true; lp.blobs.forEach((bl) => HW.addBlob(bl)); lp.blobs = []; lp.urls = []; HW.run(S.cfg, completion); };
-
-  // live camera: stays open so you can shoot page after page
-  let camStream = null;
+  function goHome() { show('home'); renderHome(); }
+  byId('fPick').addEventListener('change', function (e) { addBlobs(Array.prototype.slice.call(e.target.files)); e.target.value = ''; });
+  byId('fCam').addEventListener('change', function (e) { addBlobs(Array.prototype.slice.call(e.target.files)); e.target.value = ''; });
+  byId('hPick').onclick = function () { byId('fPick').click(); };
+  byId('hClearA').onclick = function (e) { e.preventDefault(); if (!confirm('Discard all pages?')) return; queue = []; newScan(); };
+  var stream = null;
   async function openCamera() {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera API');
-      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } }, audio: false });
-      const v = $('#camVideo'); v.srcObject = camStream; await v.play();
-      $('#camera').hidden = false; camUpdate();
-    } catch (e) { $('#lCam').click(); }   // fall back to the phone's own camera
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera');
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } }, audio: false });
+      var v = byId('cv'); v.srcObject = stream; v.setAttribute('playsinline', ''); await v.play();
+      show('cam'); camCount();
+    } catch (e) { byId('fCam').click(); }
   }
-  function camUpdate() {
-    const n = lp.blobs.length;
-    $('#camSub').textContent = n + (n === 1 ? ' page' : ' pages');
-    $('#camThumb').style.backgroundImage = n ? 'url(' + lp.urls[n - 1] + ')' : 'none';
-  }
-  function closeCamera() { if (camStream) camStream.getTracks().forEach((tr) => tr.stop()); camStream = null; $('#camera').hidden = true; renderHome(); }
-  $('#shutter').onclick = () => {
-    const v = $('#camVideo'); if (!v.videoWidth) return;
-    const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
-    c.getContext('2d').drawImage(v, 0, 0);
-    const fl = $('#camFlash'); fl.style.opacity = '.85'; setTimeout(() => (fl.style.opacity = '0'), 90);
-    c.toBlob((bl) => { if (bl) { addPages([bl]); camUpdate(); } c.width = c.height = 0; }, 'image/jpeg', 0.92);
+  function camCount() { var n = queue.length; byId('cn').textContent = pageWord(n); var t = queue[n - 1]; byId('cthumb').style.backgroundImage = t ? 'url(' + t.thumbSrc + ')' : 'none'; }
+  function closeCamera() { if (stream) { var tr = stream.getTracks(); for (var i = 0; i < tr.length; i++) tr[i].stop(); } stream = null; show('home'); renderHome(); }
+  byId('hCam').onclick = openCamera;
+  byId('cDone').onclick = function (e) { e.preventDefault(); closeCamera(); };
+  byId('shutter').onclick = function () {
+    var v = byId('cv'); if (!v.videoWidth) return;
+    var c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0);
+    var f = byId('flash'); f.style.opacity = '0.8'; setTimeout(function () { f.style.opacity = '0'; }, 90);
+    c.toBlob(function (b) { c.width = c.height = 0; if (b) { var o = addOne(b); camCount(); } }, 'image/jpeg', 0.92);
   };
-  $('#camDone').onclick = closeCamera;
-  $('#lCamLive').onclick = openCamera;
+  function startReview() {
+    startWorkers();
+    queue.forEach(function (o) { S.pages.push({ id: S.nextId++, blob: o.blob, thumbSrc: o.thumbSrc, mode: 'ink', state: 'new', rot: 0 }); }); queue = [];
+    S.pdf = null; show('rev'); document.body.classList.remove('off');
+    for (var i = 0; i < S.pages.length; i++) if (S.pages[i].state === 'new') { S.cur = i; break; }
+    if (S.cur >= S.pages.length) S.cur = 0;
+    view.w = 0; showPage(); renderStrip(); pump(); updateStatus();
+  }
+  byId('hGo').onclick = startReview;
+  function newScan() { S.pages.forEach(function (p) { if (p.worker) p.worker.postMessage({ type: 'drop', id: p.id, rid: 0 }); }); S.pages = []; S.cur = 0; S.pdf = null; S.pendingName = null; el.sRes.hidden = true; el.view.width = 1; view.w = 0; goHome(); }
 
-  // hosted page: open straight to the home screen
+  /* ---------- hosts: a browser tab, a Home Screen app, or Scriptable ---------- */
+  function finish(result) { result.settings = S.set; persist(); if (completion) completion(result); }
+  var HW = {
+    images: [],
+    addImage: function (b64, type) { var bin = atob(b64), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); this.images.push(new Blob([u], { type: type || 'image/jpeg' })); },
+    addBlob: function (blob) { this.images.push(blob); },
+    run: function (cfg, done) {
+      completion = done || null; S.cfg = cfg || {};
+      if (cfg && cfg.settings) for (var k in cfg.settings) S.set[k] = cfg.settings[k];
+      syncAdjust(); var imgs = this.images; this.images = [];
+      imgs.forEach(function (b) { addOne(b); });
+      renderHome(); if (imgs.length) setTimeout(startReview, 50); else goHome();
+    }
+  };
+  window.HW = HW; window.__scan = S;
+
+  loadSaved(); syncAdjust(); renderHome();
+  setTimeout(startWorkers, 200);   // boot and warm the workers while the person is still taking photos
   if (/^https?:$/.test(location.protocol)) {
-    try { const saved = JSON.parse(localStorage.getItem('hw_settings') || 'null'); if (saved) Object.assign(S.settings, saved); } catch (e) {}
-    HW.run({ maxMB: 12 }, null);
-    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) navigator.serviceWorker.register('sw.js').catch(() => {});
-  } else syncControls();
+    goHome();
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) navigator.serviceWorker.register('sw.js').catch(function () {});
+  } else show('home');
 })();
 </script>
 </body>

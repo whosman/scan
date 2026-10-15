@@ -65,11 +65,14 @@ async function main() {
 
   const wv = new WebView();
   await wv.loadHTML(APP_HTML);
-  wv.present(true);
+  const shown = wv.present(true);   // resolves when the person closes the window
   for (const it of items) await wv.evaluateJavaScript("HW.addImage('" + it.b64 + "','" + it.type + "')", false);
 
   const cfg = { ...CONFIG, settings: loadSettings() };
-  const result = await wv.evaluateJavaScript("HW.run(" + JSON.stringify(cfg) + ", completion)", true);
+  const result = await Promise.race([
+    wv.evaluateJavaScript("HW.run(" + JSON.stringify(cfg) + ", completion)", true),
+    shown.then(() => ({ status: "closed" })),
+  ]);
   if (result && result.settings) saveSettings(result.settings);
 
   const paths = items.map((it) => it.path);

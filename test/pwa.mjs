@@ -1,4 +1,4 @@
-// Home Screen app checks: manifest, icons, and the app opening offline after one visit.
+﻿// Home Screen app checks: manifest, icons, and the app opening offline after one visit.
 import puppeteer from 'puppeteer-core';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -19,12 +19,13 @@ const page = await browser.newPage();
 await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 await page.goto('http://127.0.0.1:8793/');
-await page.waitForFunction(() => !document.getElementById('landing').hidden, { timeout: 10000 });
+await page.waitForFunction(() => !document.getElementById('home').hidden, { timeout: 10000 });
 const sw = await page.evaluate(async () => { const r = await navigator.serviceWorker.ready; await new Promise((res) => setTimeout(res, 800)); const keys = await caches.keys(); const c = await caches.open(keys[0]); return { active: !!r.active, cached: (await c.keys()).map((k) => new URL(k.url).pathname) }; });
 console.log('service worker active:', sw.active, '| cached:', sw.cached.join(', '));
 console.log('manifest linked:', await page.$eval('link[rel=manifest]', (e) => e.getAttribute('href')), '| touch icon:', await page.$eval('link[rel=apple-touch-icon]', (e) => e.getAttribute('href')));
 await page.setOfflineMode(true);
 await page.reload();
-await page.waitForFunction(() => !document.getElementById('landing').hidden, { timeout: 10000 });
-console.log('offline reload ok, home screen shows:', await page.$eval('#lSub', (e) => e.textContent));
+await page.waitForFunction(() => !document.getElementById('home').hidden, { timeout: 10000 });
+console.log('offline reload ok, home screen shows:', await page.$eval('#hGo', (e) => e.textContent));
 await browser.close(); srv.close();
+

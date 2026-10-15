@@ -1,6 +1,6 @@
 // Offline cache. After one visit, the app opens with no connection.
 // Pages are served from the cache first and refreshed in the background.
-const CACHE = 'scan-v1';
+const CACHE = 'scan-v2';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
