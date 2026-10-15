@@ -47,6 +47,14 @@ The floor is Safari 12, which runs on the iPhone 5s and 6. The design follows fr
 
 `node test/compat.mjs` parses the app as ES2018 and fails on any newer API or CSS.
 
+**It tunes itself to the phone.** At start, each worker times a tiny cleaning job. A phone more than about six times slower than a fast desktop gets a lower working resolution, so a page stays near 2.5 seconds. Long scans lower it further. The Sharper button re-reads the photo at full size when you save.
+
+**What I measured for slow phones.** I have no old iPhone, so I used stand-ins:
+
+- Real WebKit, Safari's engine, on a 320 by 568 touch screen (`test/webkit.mjs`). Taps, double-tap zoom, sliders and saving all pass. A page appears in about 2.4 seconds, and the straightened colour preview shows sooner.
+- Node with the optimizing compiler switched off, which is a slow-CPU stand-in (`test/slow-bench.mjs`). One page at 200 dpi takes 5.3 seconds. That is 18 times slower than normal. At the lower resolution a slow phone picks, it takes 2.0 to 3.4 seconds. A real iPhone keeps Safari's optimizer on, so it lands between the two.
+- The first version took over a minute for one page on a phone, with no progress shown.
+
 ## Host it yourself
 
 The app is one file, `index.html`. GitHub Pages serves it from this repository. To change it, edit `app.template.html`, `core.js` or `pdf.js`, then run `npm install` and `node build.mjs`, and commit the new `index.html`.
@@ -65,10 +73,17 @@ node test/bench.mjs 200                speed and ink match against the first ver
 node test/stress.mjs                   lighting, noise and ruling stress test
 node test/e2e6.mjs                     every feature, on a 320x568 screen with a fake camera
 node test/e2e6.mjs lite                the same, as a two-core phone
+node test/webkit.mjs                   the app in WebKit (Safari's engine), with touch
+node test/slow-bench.mjs               cost per page; run with node --no-opt for a slow-CPU stand-in
 node test/pwa.mjs                      Home Screen app and offline cache
 node test/live.mjs                     the published site
 ```
 
-## Not yet tested on an iPhone
+## Known limits
 
-I tested on a desktop browser, a phone-sized screen, and a one-worker mode that stands in for a slow phone. I have not run it on a real iPhone. The first things to check: the live camera in Safari, the share sheet with a PDF, and how long a page takes on an old phone.
+- Photos at about a third of normal exposure with heavy noise lose some faint ink. The app tells you to retake them. I tried smoothing along the stroke direction and it made things worse, so I left it out.
+- Glare and clipped, overexposed paper hide ink that the camera never recorded. The app warns you.
+
+## Not yet tested on a real iPhone
+
+I tested in Chromium, in real WebKit, on a phone-sized screen, in a one-worker mode, and with a slowed-down CPU. I have not run it on an actual iPhone. The first things to check: the live camera in Safari, the share sheet with a PDF, and how long a page takes on an old phone.
