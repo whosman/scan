@@ -39,6 +39,9 @@ label{display:block}
 .row{display:flex;align-items:center}
 .row>*+*{margin-left:8px}
 .grow{flex:1;min-width:0}
+.pickwrap{position:relative;display:block}
+.pickwrap button{display:block;width:100%;pointer-events:none}
+.pickwrap input{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;font-size:16px;margin:0;cursor:pointer}
 .thumbs{display:flex;flex-wrap:wrap;margin:0 -4px}
 .th{width:64px;height:84px;margin:4px;border:1px solid #000;background:#fff center/cover no-repeat;position:relative;flex:0 0 auto}
 .th.num{font:20px/84px Georgia,serif;text-align:center;color:#444}
@@ -64,13 +67,11 @@ body.off .bar,body.off #note,body.off #status{opacity:0;pointer-events:none}
 #note button{min-height:40px;border:0;color:#0b3d91;text-decoration:underline;padding:0 8px;font-size:15px;background:none;flex:0 0 auto}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:2px solid #000;z-index:7;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom));-webkit-transition:opacity .15s;transition:opacity .15s;max-height:70%;overflow-y:auto;-webkit-overflow-scrolling:touch}
 body.fade .sheet{opacity:.15}
-.toolswrap{position:relative;margin:0 -14px}
-.sheet .tools{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 6px}
+.toolswrap{display:flex;align-items:stretch;margin:0 -14px}
+.sheet .tools{display:flex;flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 2px}
 .sheet .tools button{flex:0 0 auto;border:0;text-decoration:underline;color:#0b3d91;min-height:44px;padding:0 10px;white-space:nowrap;background:none}
-.toolswrap .more{position:absolute;top:0;bottom:0;width:30px;border:0;background:#fff;color:#000;font-size:28px;line-height:1;padding:0;text-decoration:none}
-.toolswrap .more[hidden]{display:none}
-.toolswrap .ml{left:0;border-right:1px solid #000}
-.toolswrap .mr{right:0;border-left:1px solid #000}
+.toolswrap .more{flex:0 0 30px;width:30px;border:0;background:#fff;color:#000;font-size:28px;line-height:1;padding:0;text-decoration:none}
+.toolswrap .more.off{visibility:hidden}
 .sheet .tools button.bad{color:#a40000}
 .sheet .strip{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px -14px 0;padding:0 10px 4px}
 .ctl{display:flex;align-items:center;min-height:32px}
@@ -107,14 +108,15 @@ body.fade .sheet{opacity:.15}
 <section id="home" class="scr doc">
   <h1>Scan</h1>
   <p>Photograph handwritten pages. Get one clean PDF.</p>
-  <p class="row"><button id="hCam" class="main grow">Take photos</button><button id="hPick" class="grow">Choose files</button></p>
+  <p class="row"><button id="hCam" class="main grow">Take photos</button><span class="pickwrap grow"><button id="hPick" tabindex="-1">Choose files</button><input type="file" id="fPick" accept="image/*" multiple></span></p>
   <p class="small" id="hHint">Lay each page flat on a dark surface, whole page in view. Scan finds the edges and straightens it.</p>
+  <p class="small">Choose files not responding? <a id="hOne" href="#">Pick one photo</a>.</p>
   <div class="thumbs" id="hThumbs"></div>
   <hr>
   <p class="row"><button id="hGo" class="main grow" disabled>Review pages</button></p>
   <p class="small" id="hClear" hidden><a id="hClearA" href="#">Discard all pages</a></p>
   <p class="small">Everything happens in this browser. Nothing is uploaded. <a id="hDiag" href="#">Check this phone</a></p>
-  <input type="file" id="fPick" accept="image/*" multiple hidden>
+  <input type="file" id="fOne" accept="image/*" hidden>
   <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
 </section>
 
@@ -144,8 +146,8 @@ body.fade .sheet{opacity:.15}
   <div id="bot" class="bar"><button id="bPrev" class="arrow" aria-label="Previous page">&lsaquo;</button><button id="bNext" class="arrow" aria-label="Next page">&rsaquo;</button><button id="bAdj" class="lnk">Adjust</button><button id="bSave" class="main" disabled>Save</button></div>
 
   <div id="sTools" class="sheet" hidden>
-    <div class="toolswrap"><button class="more ml" id="tmL" aria-label="Earlier tools" hidden>&lsaquo;</button><button class="more mr" id="tmR" aria-label="More tools" hidden>&rsaquo;</button>
-    <div class="tools" id="toolsRow"><button id="tRot">Rotate</button><button id="tCrop">Crop</button><button id="tCmp">Hold to compare</button><button id="tMode">Photo mode</button><button id="tUp">Move earlier</button><button id="tDn">Move later</button><button id="tDel" class="bad">Delete</button></div></div>
+    <div class="toolswrap"><button class="more ml off" id="tmL" aria-label="Earlier tools">&lsaquo;</button>
+    <div class="tools" id="toolsRow"><button id="tRot">Rotate</button><button id="tCrop">Crop</button><button id="tCmp">Hold to compare</button><button id="tMode">Photo mode</button><button id="tUp">Move earlier</button><button id="tDn">Move later</button><button id="tDel" class="bad">Delete</button></div><button class="more mr off" id="tmR" aria-label="More tools">&rsaquo;</button></div>
     <div class="strip" id="strip"></div>
     <div class="row"><span class="grow small" id="tInfo"></span><button class="lnk" id="tClose">Close</button></div>
   </div>
@@ -1494,7 +1496,7 @@ function workerMain() {
   function closeSheets() { el.sTools.hidden = true; el.sAdj.hidden = true; }
   // the tool row scrolls sideways; arrows at its edges show there is more, and move it
   var toolsRow = byId('toolsRow');
-  function toolArrows() { var r = toolsRow, max = r.scrollWidth - r.clientWidth; byId('tmL').hidden = r.scrollLeft < 4; byId('tmR').hidden = max < 4 || r.scrollLeft > max - 4; }
+  function toolArrows() { var r = toolsRow, max = r.scrollWidth - r.clientWidth; byId('tmL').className = 'more ml' + (r.scrollLeft < 4 ? ' off' : ''); byId('tmR').className = 'more mr' + (max < 4 || r.scrollLeft > max - 4 ? ' off' : ''); }
   toolsRow.addEventListener('scroll', toolArrows);
   byId('tmL').onclick = function () { toolsRow.scrollLeft -= toolsRow.clientWidth * 0.6; };
   byId('tmR').onclick = function () { toolsRow.scrollLeft += toolsRow.clientWidth * 0.6; };
@@ -1680,9 +1682,14 @@ function workerMain() {
     if (list.length) toast(list.length === 1 ? 'Added 1 photo.' : 'Added ' + list.length + ' photos.');
     try { e.target.value = ''; } catch (err2) {}
   }
-  byId('fPick').addEventListener('change', onFiles);
-  byId('fCam').addEventListener('change', onFiles);
-  byId('hPick').onclick = function () { byId('fPick').click(); };
+  // Safari sometimes fires no change event for the photo library picker. Listen to input as well, and look again for a while after the tap.
+  var pollT = 0;
+  function watchInput(inp) {
+    clearInterval(pollT); var n = 0;
+    pollT = setInterval(function () { n++; if (inp.files && inp.files.length) { clearInterval(pollT); onFiles({ target: inp }); } else if (n > 600) clearInterval(pollT); }, 400);
+  }
+  ['fPick', 'fOne', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { watchInput(inp); }); });
+  byId('hOne').onclick = function (e) { e.preventDefault(); var inp = byId('fOne'); watchInput(inp); inp.click(); };
   byId('hClearA').onclick = function (e) { e.preventDefault(); if (!confirm('Discard all pages?')) return; queue = []; newScan(); };
   var stream = null;
   async function openCamera() {
