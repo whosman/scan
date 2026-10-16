@@ -35,8 +35,16 @@ ok(await p.evaluate(() => /restarted this page/.test(document.getElementById('hW
 await p.evaluate(() => window.__diag()); await p.waitForFunction(() => /Verdict|FAILED/.test(document.getElementById('dOut').textContent), null, { timeout: 60000 });
 ok(await p.evaluate(() => /Version: v\d+/.test(document.getElementById('dOut').textContent) && /Picker log/.test(document.getElementById('dOut').textContent)), 'the report carries the version and the picker log');
 await p.goto('http://127.0.0.1:8802/');
-// 3. the tools row
+// 2c. paste route: no file picker involved
 await p.evaluate(() => { document.getElementById('hClearA').click(); });
+await p.click('#hPaste');
+await p.waitForFunction(() => !document.getElementById('pasteBox').hidden, null, { timeout: 5000 }).catch(() => {});
+ok(await p.evaluate(() => !document.getElementById('pasteBox').hidden), 'paste: the paste box appears when the clipboard cannot be read directly');
+await p.evaluate(async () => { const r = await fetch('/icons/icon-192.png'); const blob = await r.blob(); const dt = new DataTransfer(); dt.items.add(new File([blob], 'copied.png', { type: 'image/png' })); const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }); document.getElementById('pasteBox').dispatchEvent(ev); });
+await p.waitForFunction(() => document.querySelectorAll('#hThumbs .th').length >= 1, null, { timeout: 5000 }).catch(() => {});
+ok(await p.evaluate(() => document.querySelectorAll('#hThumbs .th').length >= 1), 'paste: a pasted photo shows on the home screen');
+// 3. the tools row
+await p.goto('http://127.0.0.1:8802/');
 await p.setInputFiles('#fOne', [photo]);
 await p.waitForFunction(() => !document.getElementById('hGo').disabled);
 await p.click('#hGo'); await p.waitForFunction(() => window.__scan.pages[0].state === 'ready', null, { timeout: 60000 }); await p.waitForTimeout(400);
