@@ -65,6 +65,18 @@ A photo from a phone is about 12 megapixels. Opening it ran on the main thread a
 - A clock counts the seconds on any step that takes more than three.
 - If a worker says nothing for 25 seconds, the app replaces it and tries the page again at a lower resolution. A photo that never opens ends with an error after 90 seconds. `node test/hang.mjs` checks the recovery. `node test/stall.mjs 20` runs a real photo with the CPU slowed twenty times.
 
+## Lockdown Mode and other restricted browsers
+
+The first report from a real iPhone (iOS 17, Safari) showed no WebAssembly, no FileReader, no camera API and no canvas read-back. That is what Lockdown Mode looks like. Lockdown also turns off the JavaScript compiler, so code runs many times slower. Two faults followed. The start-up check used FileReader and waited forever. And the first page was scheduled before the phone's speed was known, so it ran at full size. Both are fixed:
+
+- Bytes of a file are read by Blob.arrayBuffer, FileReader or Response, whichever exists. Each wait has a timer.
+- The phone's speed is recorded before the first page starts. A very slow phone works at 90 to 110 dpi.
+- A browser that blocks reading photo pixels gets a plain message that names the setting.
+- The camera falls back to the phone's own camera app, as before.
+
+
+ode test/lockdown.mjs stands in for this phone: Edge with the compiler off (which also removes WebAssembly), no FileReader and no camera API. A page takes about 9 seconds at 90 dpi there, down from 25 seconds, and the report completes. Turning Lockdown Mode off for this site in Safari makes Scan about ten times faster.
+
 ## Host it yourself
 
 The app is one file, `index.html`. GitHub Pages serves it from this repository. To change it, edit `app.template.html`, `core.js` or `pdf.js`, then run `npm install` and `node build.mjs`, and commit the new `index.html`.

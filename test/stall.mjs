@@ -12,7 +12,7 @@ if (!url) {
   srv = http.createServer((req, res) => { let p = decodeURIComponent(new URL(req.url, 'http://x').pathname); if (p === '/') p = '/index.html'; const f = path.join(root, p); if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end(); } res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? 'text/javascript' : 'application/octet-stream' }); res.end(fs.readFileSync(f)); });
   await new Promise((r) => srv.listen(8796, '127.0.0.1', r)); url = 'http://127.0.0.1:8796/';
 }
-const browser = await puppeteer.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: 'new', args: ['--no-sandbox'] });
+const browser = await puppeteer.launch({ executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: 'new', args: ['--no-sandbox'].concat(process.env.JITLESS ? ['--js-flags=--jitless'] : []) });
 const page = await browser.newPage();
 await page.setViewport({ width: 320, height: 568, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
 const cdp = await page.createCDPSession(); await cdp.send('Emulation.setCPUThrottlingRate', { rate });
@@ -29,6 +29,7 @@ while (Date.now() - t0 < 180000) {
   if (/ready/.test(s)) { done = true; break; }
   await new Promise((r) => setTimeout(r, 250));
 }
+console.log('chosen:', JSON.stringify(await page.evaluate(() => ({ dpi: window.__scan.pages[0].dpi, hot: window.__scan.hot, impl: window.__scan.impl, cold: window.__scan.cold }))));
 console.log(JSON.stringify(await page.evaluate(() => window.__scan.pages[0].t)), 'longest main-thread freeze (ms):', Math.round(await page.evaluate(() => window.__gap)));
 console.log(done ? 'ready after ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s at throttle ' + rate : 'NOT READY after 180 s at throttle ' + rate);
 await browser.close(); if (srv) srv.close();
