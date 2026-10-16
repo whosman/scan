@@ -64,8 +64,13 @@ body.off .bar,body.off #note,body.off #status{opacity:0;pointer-events:none}
 #note button{min-height:40px;border:0;color:#0b3d91;text-decoration:underline;padding:0 8px;font-size:15px;background:none;flex:0 0 auto}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:2px solid #000;z-index:7;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom));-webkit-transition:opacity .15s;transition:opacity .15s;max-height:70%;overflow-y:auto;-webkit-overflow-scrolling:touch}
 body.fade .sheet{opacity:.15}
-.sheet .tools{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 6px}
+.toolswrap{position:relative;margin:0 -14px}
+.sheet .tools{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:0 6px}
 .sheet .tools button{flex:0 0 auto;border:0;text-decoration:underline;color:#0b3d91;min-height:44px;padding:0 10px;white-space:nowrap;background:none}
+.toolswrap .more{position:absolute;top:0;bottom:0;width:30px;border:0;background:#fff;color:#000;font-size:28px;line-height:1;padding:0;text-decoration:none}
+.toolswrap .more[hidden]{display:none}
+.toolswrap .ml{left:0;border-right:1px solid #000}
+.toolswrap .mr{right:0;border-left:1px solid #000}
 .sheet .tools button.bad{color:#a40000}
 .sheet .strip{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:4px -14px 0;padding:0 10px 4px}
 .ctl{display:flex;align-items:center;min-height:32px}
@@ -139,7 +144,8 @@ body.fade .sheet{opacity:.15}
   <div id="bot" class="bar"><button id="bPrev" class="arrow" aria-label="Previous page">&lsaquo;</button><button id="bNext" class="arrow" aria-label="Next page">&rsaquo;</button><button id="bAdj" class="lnk">Adjust</button><button id="bSave" class="main" disabled>Save</button></div>
 
   <div id="sTools" class="sheet" hidden>
-    <div class="tools"><button id="tRot">Rotate</button><button id="tCrop">Crop</button><button id="tCmp">Hold to compare</button><button id="tMode">Photo mode</button><button id="tUp">Move earlier</button><button id="tDn">Move later</button><button id="tDel" class="bad">Delete</button></div>
+    <div class="toolswrap"><button class="more ml" id="tmL" aria-label="Earlier tools" hidden>&lsaquo;</button><button class="more mr" id="tmR" aria-label="More tools" hidden>&rsaquo;</button>
+    <div class="tools" id="toolsRow"><button id="tRot">Rotate</button><button id="tCrop">Crop</button><button id="tCmp">Hold to compare</button><button id="tMode">Photo mode</button><button id="tUp">Move earlier</button><button id="tDn">Move later</button><button id="tDel" class="bad">Delete</button></div></div>
     <div class="strip" id="strip"></div>
     <div class="row"><span class="grow small" id="tInfo"></span><button class="lnk" id="tClose">Close</button></div>
   </div>
@@ -297,7 +303,7 @@ function workerMain() {
   function pageWord(n) { return n + (n === 1 ? ' page' : ' pages'); }
 
   /* ---------- image decode: Image + canvas, so it works on old iPhones. EXIF is handled by hand when the browser will not. ---------- */
-  var autoOrient = null;
+  var autoOrient = null, bmpAuto = null;
   function detectAutoOrient() {
     return new Promise(function (resolve) {
       try {
@@ -311,7 +317,7 @@ function workerMain() {
             var len = exif.length + 2, out = new Uint8Array(jpg.length + len + 2);
             out[0] = 0xFF; out[1] = 0xD8; out[2] = 0xFF; out[3] = 0xE1; out[4] = len >> 8; out[5] = len & 255; out.set(exif, 6); out.set(jpg.subarray(2), 6 + exif.length);
             var u = URL.createObjectURL(new Blob([out], { type: 'image/jpeg' })), im = new Image();
-            im.onload = function () { autoOrient = im.naturalWidth === 1; URL.revokeObjectURL(u); resolve(); };
+            im.onload = function () { autoOrient = im.naturalWidth === 1; URL.revokeObjectURL(u); probeBmp(new Blob([out], { type: 'image/jpeg' })).then(resolve); };
             im.onerror = function () { autoOrient = true; URL.revokeObjectURL(u); resolve(); };
             im.src = u;
           };
@@ -321,6 +327,10 @@ function workerMain() {
       } catch (e) { autoOrient = true; resolve(); }
     });
   }
+  // createImageBitmap decodes off the main thread (Safari 15 and up). Does it turn photos upright by itself? Null means it is not usable.
+  // Not used in Safari's engine: measured there it made four pages 1.5 s slower than the plain image path.
+  var isSafariEngine = /AppleWebKit/.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Android/.test(navigator.userAgent);
+  function probeBmp(b) { return new Promise(function (res) { if (!window.createImageBitmap || isSafariEngine) { res(); return; } try { createImageBitmap(b).then(function (bm) { bmpAuto = bm.width === 1; if (bm.close) bm.close(); res(); }, function () { res(); }); } catch (e) { res(); } }); }
   function readExifRot(buf) {
     var v = new DataView(buf); if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return 0;
     var o = 2;
@@ -336,30 +346,43 @@ function workerMain() {
     }
     return 0;
   }
-  function loadImg(blob) { return new Promise(function (res, rej) { var u = URL.createObjectURL(blob), im = new Image(); im.onload = function () { res({ im: im, u: u }); }; im.onerror = function () { URL.revokeObjectURL(u); rej(new Error('Could not read this image')); }; im.src = u; }); }
+  // Decode off the main thread when the browser can (img.decode, Safari 11.1 and up), so the page keeps moving. A timer ends a load that never answers.
+  function loadImg(blob) {
+    return new Promise(function (res, rej) {
+      var u = URL.createObjectURL(blob), im = new Image(), done = false;
+      function fin(err) { if (done) return; done = true; clearTimeout(tm); if (err) { URL.revokeObjectURL(u); rej(err); } else res({ im: im, u: u }); }
+      var tm = setTimeout(function () { fin(new Error('This photo took too long to open')); }, 90000);
+      im.onload = function () { if (im.decode) { im.decode().then(function () { fin(); }, function () { fin(); }); } else fin(); };
+      im.onerror = function () { fin(new Error('Could not read this image')); };
+      im.src = u;
+    });
+  }
   // { buf, w, h, small:{data,w,h} } with the photo upright and the long side at most maxSide
   async function decodePhoto(blob, userRot, maxSide) {
     var T = [performance.now()];
-    if (autoOrient === null) await detectAutoOrient();
+    if (autoOrient === null) await Promise.race([detectAutoOrient(), new Promise(function (r) { setTimeout(function () { if (autoOrient === null) autoOrient = true; r(); }, 4000); })]);
     T.push(performance.now());
-    var rot = userRot || 0;
-    if (!autoOrient) { var head = await new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(new ArrayBuffer(0)); }; r.readAsArrayBuffer(blob.slice(0, 131072)); }); rot += readExifRot(head); }
+    var rot = userRot || 0, bm = null;
+    if (bmpAuto !== null) { try { bm = await createImageBitmap(blob); } catch (e) { bm = null; } }   // decoded off the main thread
+    var auto = bm ? bmpAuto : autoOrient;
+    if (!auto) { var head = await new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = function () { res(new ArrayBuffer(0)); }; r.readAsArrayBuffer(blob.slice(0, 131072)); }); rot += readExifRot(head); }
     rot = ((rot % 4) + 4) % 4;
     T.push(performance.now());
-    var l = await loadImg(blob), im = l.im, sw0 = im.naturalWidth, sh0 = im.naturalHeight, swp = rot % 2 === 1;
+    var l = bm ? null : await loadImg(blob), im = bm || l.im, sw0 = bm ? bm.width : im.naturalWidth, sh0 = bm ? bm.height : im.naturalHeight, swp = rot % 2 === 1;
     T.push(performance.now());
     var sw = swp ? sh0 : sw0, sh = swp ? sw0 : sh0;
     var k = Math.min(1, maxSide / Math.max(sw, sh)), w = Math.round(sw * k), h = Math.round(sh * k);
     var c = document.createElement('canvas'); c.width = w; c.height = h;
     var x = c.getContext('2d'); x.save(); x.translate(w / 2, h / 2); x.rotate(rot * Math.PI / 2);
-    var dw = swp ? h : w, dh = swp ? w : h; x.drawImage(im, -dw / 2, -dh / 2, dw, dh); x.restore();
+    var dw = swp ? h : w, dh = swp ? w : h;
+    x.drawImage(im, -dw / 2, -dh / 2, dw, dh); x.restore();
     T.push(performance.now());
     var big = x.getImageData(0, 0, w, h);
     T.push(performance.now());
     var sk = Math.min(1, 640 / Math.max(w, h)), smw = Math.max(8, Math.round(w * sk)), smh = Math.max(8, Math.round(h * sk));
     var sc = document.createElement('canvas'); sc.width = smw; sc.height = smh; var sx = sc.getContext('2d'); sx.drawImage(c, 0, 0, smw, smh);
     var small = sx.getImageData(0, 0, smw, smh);
-    c.width = c.height = 0; sc.width = sc.height = 0; URL.revokeObjectURL(l.u); im.src = '';
+    c.width = c.height = 0; sc.width = sc.height = 0; if (bm) { if (bm.close) bm.close(); } else { URL.revokeObjectURL(l.u); im.src = ''; }
     T.push(performance.now());
     return { buf: big.data.buffer, w: w, h: h, small: { data: small.data, w: smw, h: smh }, t: { orient: Math.round(T[1] - T[0]), exif: Math.round(T[2] - T[1]), load: Math.round(T[3] - T[2]), draw: Math.round(T[4] - T[3]), get: Math.round(T[5] - T[4]), small: Math.round(T[6] - T[5]) } };
   }
@@ -370,29 +393,52 @@ function workerMain() {
     if (workers.length) return;
     if (!window.Worker) { toast('This browser cannot run Scan.'); return; }
     var src = byId('lib').textContent + '\n(' + workerMain.toString() + ')();';
-    var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    workerUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
     var n = lite ? 1 : Math.max(1, Math.min(3, cores - 1));
-    for (var i = 0; i < n; i++) {
-      var w = new Worker(url); w.busy = false;
-      w.onmessage = function (ev) {
-        var m = ev.data, slot = waiting[m.rid]; if (!slot) return;
-        if (m.type === 'progress') { if (slot.onProg) slot.onProg(m.frac, m.label); return; }
-        if (m.type === 'preview') { if (slot.onPreview) slot.onPreview(m); return; }
-        delete waiting[m.rid]; slot.worker.busy = false;
-        if (m.type === 'error') slot.reject(new Error(m.error)); else slot.resolve(m);
-        pump();
-      };
-      w.onerror = function (e) { console.error('worker error', e && e.message); };
-      workers.push(w);
-      callWorker(w, { type: 'warm' }, [], null).then(function (r) {
-        if (r && r.jsHot) { var hot = r.impl === 'wasm' ? r.wasmHot : r.jsHot; if (!S.hot || hot < S.hot) { S.hot = hot; S.impl = r.impl; S.jsHot = r.jsHot; S.wasmHot = r.wasmHot; S.note = r.note; } S.cold = r.cold; }
-        pump();
-      }).catch(function () {});
-    }
+    for (var i = 0; i < n; i++) workers.push(makeWorker(true));
+  }
+  var workerUrl = null;
+  // Fail every call a worker still owes, so nothing waits forever on a worker that died.
+  function failWorker(w, why) {
+    for (var k in waiting) if (waiting[k].worker === w) { var s = waiting[k]; delete waiting[k]; s.reject(new Error(why)); }
+    w.busy = false; w.dead = true;
+  }
+  function makeWorker(warm) {
+    var w = new Worker(workerUrl); w.busy = false;
+    w.onmessage = function (ev) {
+      var m = ev.data, slot = waiting[m.rid]; if (!slot) return;
+      slot.last = Date.now();
+      if (m.type === 'progress') { if (slot.onProg) slot.onProg(m.frac, m.label); return; }
+      if (m.type === 'preview') { if (slot.onPreview) slot.onPreview(m); return; }
+      delete waiting[m.rid]; slot.worker.busy = false;
+      if (m.type === 'error') slot.reject(new Error(m.error)); else slot.resolve(m);
+      pump();
+    };
+    w.onerror = function (e) { console.error('worker error', e && e.message); failWorker(w, 'The worker stopped: ' + (e && e.message || 'unknown')); };
+    if (warm) callWorker(w, { type: 'warm' }, [], null).then(function (r) {
+      if (r && r.jsHot) { var hot = r.impl === 'wasm' ? r.wasmHot : r.jsHot; if (!S.hot || hot < S.hot) { S.hot = hot; S.impl = r.impl; S.jsHot = r.jsHot; S.wasmHot = r.wasmHot; S.note = r.note; } S.cold = r.cold; }
+      pump();
+    }).catch(function () { pump(); });
+    return w;
   }
   function callWorker(w, msg, transfer, onProg, onPreview) {
-    return new Promise(function (resolve, reject) { msg.rid = ++rid; waiting[msg.rid] = { resolve: resolve, reject: reject, onProg: onProg, onPreview: onPreview, worker: w }; w.busy = true; w.postMessage(msg, transfer || []); });
+    return new Promise(function (resolve, reject) { msg.rid = ++rid; waiting[msg.rid] = { resolve: resolve, reject: reject, onProg: onProg, onPreview: onPreview, worker: w, last: Date.now(), type: msg.type }; w.busy = true; w.postMessage(msg, transfer || []); });
   }
+  // A worker that says nothing for 25 s has hung or been killed (an iPhone ends a worker that uses too much memory). Replace it and let the page try again smaller.
+  setInterval(function () {
+    var now = Date.now();
+    for (var k in waiting) {
+      var s = waiting[k];
+      if (s && s.type !== 'warm' && now - s.last > 25000) {
+        var dead = s.worker, i = workers.indexOf(dead);
+        try { dead.terminate(); } catch (e) {}
+        failWorker(dead, 'The phone stopped the worker. It may have run out of memory.');
+        if (i >= 0) workers[i] = makeWorker(false);
+        S.pages.forEach(function (p) { if (p.worker === dead && p.state === 'ready') { p.state = 'new'; p.worker = null; } });   // its stored analyses are gone: redo them
+        break;
+      }
+    }
+  }, 2000);
 
   /* ---------- analysis queue: the page you are looking at first, then the rest in order ---------- */
   // Working resolution: fewer pixels for more pages, and for slower phones. The warm-up run on a tiny page tells us
@@ -414,14 +460,14 @@ function workerMain() {
     var cur = S.pages[S.cur], order = S.pages.slice().sort(function (a, b) { return (b === cur ? 1 : 0) - (a === cur ? 1 : 0); });
     for (var i = 0; i < order.length && idle.length; i++) {
       var pg = order[i];
-      if (pg.state === 'new') { var w = idle.shift(); runAnalysis(pg, w, workingDpi()); }
+      if (pg.state === 'new') { var w = idle.shift(); runAnalysis(pg, w, Math.round(workingDpi() * (pg.dpiScale || 1)), pg.tried); }
     }
   }
   async function runAnalysis(pg, w, dpi, tried) {
     pg.state = 'working'; w.busy = true; pg.frac = 0; pg.label = 'Reading the photo'; updateStatus();
     var t0 = performance.now(), tm = {};
     try {
-      var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * dpi * 1.25)); tm.decode = Math.round(performance.now() - t0); tm.d = d.t;
+      var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * dpi * 1.25)); tm.decode = Math.round(performance.now() - t0); tm.d = d.t; pg.frac = 0.05; pg.label = 'Finding the page'; updateStatus();
       var override = pg.quadOverride !== undefined, msg = { type: 'analyze', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: override ? pg.quadOverride : null, small: override ? null : d.small, dpi: dpi, opts: optsNow(), mode: pg.mode };
       var xfer = [d.buf]; if (!override) xfer.push(d.small.data.buffer);
       var res = await callWorker(w, msg, xfer, function (f, label) { pg.frac = f; pg.label = label; updateStatus(); }, function (pv) {
@@ -434,7 +480,11 @@ function workerMain() {
       onPageReady(pg, new Uint8Array(res.gray)); tm.total = Math.round(performance.now() - t0);
     } catch (e) {
       console.error(e);
-      if (!tried && dpi > 120) { w.busy = false; return runAnalysis(pg, w, Math.round(dpi * 0.75), true); }   // out of memory? try smaller
+      if (!tried && dpi > 120) {   // out of memory? try smaller, on a live worker
+        w.busy = false;
+        if (w.dead) { pg.state = 'new'; pg.dpiScale = 0.75; pg.tried = true; updateStatus(); pump(); return; }
+        return runAnalysis(pg, w, Math.round(dpi * 0.75), true);
+      }
       pg.state = 'error'; pg.error = String(e.message || e);
     }
     w.busy = false; updateStatus(); renderStrip(); updateBar(); pump();
@@ -444,10 +494,13 @@ function workerMain() {
     var total = S.pages.length, doneN = S.pages.filter(function (p) { return p.state === 'ready' || p.state === 'error'; }).length;
     if (!working.length && !waitingN) { el.status.hidden = true; el.prog.style.width = '0'; return; }
     var cur = working[0], frac = cur ? cur.frac : 0;
-    el.prog.style.width = Math.round(((doneN + frac) / Math.max(1, total)) * 100) + '%';
-    el.statusT.textContent = (total > 1 ? 'Page ' + Math.min(total, doneN + 1) + ' of ' + total + '. ' : '') + (cur ? cur.label : 'Waiting');
+    if (cur && cur.lastLabel !== cur.label) { cur.lastLabel = cur.label; cur.labelAt = Date.now(); }
+    el.prog.style.width = Math.max(2, Math.round(((doneN + frac) / Math.max(1, total)) * 100)) + '%';
+    var secs = cur ? Math.floor((Date.now() - cur.labelAt) / 1000) : 0;   // a counting clock shows the phone is still working on a slow step
+    el.statusT.textContent = (total > 1 ? 'Page ' + Math.min(total, doneN + 1) + ' of ' + total + '. ' : '') + (cur ? cur.label + (secs >= 3 ? ', ' + secs + ' s' : '') : 'Waiting');
     el.status.hidden = false;
   }
+  setInterval(function () { if (S.pages.some(function (p) { return p.state === 'working'; })) updateStatus(); }, 500);
 
   /* ---------- viewer: draw the page, zoom, pan ---------- */
   var view = { gray: null, w: 0, h: 0, img: null, u32: null, ctx: null };
@@ -586,7 +639,13 @@ function workerMain() {
   byId('bPrev').onclick = function () { go(S.cur - 1); };
   byId('bNext').onclick = function () { go(S.cur + 1); };
   function closeSheets() { el.sTools.hidden = true; el.sAdj.hidden = true; }
-  byId('bTools').onclick = function () { el.sAdj.hidden = true; el.sTools.hidden = !el.sTools.hidden; document.body.classList.remove('off'); renderStrip(); };
+  // the tool row scrolls sideways; arrows at its edges show there is more, and move it
+  var toolsRow = byId('toolsRow');
+  function toolArrows() { var r = toolsRow, max = r.scrollWidth - r.clientWidth; byId('tmL').hidden = r.scrollLeft < 4; byId('tmR').hidden = max < 4 || r.scrollLeft > max - 4; }
+  toolsRow.addEventListener('scroll', toolArrows);
+  byId('tmL').onclick = function () { toolsRow.scrollLeft -= toolsRow.clientWidth * 0.6; };
+  byId('tmR').onclick = function () { toolsRow.scrollLeft += toolsRow.clientWidth * 0.6; };
+  byId('bTools').onclick = function () { el.sAdj.hidden = true; el.sTools.hidden = !el.sTools.hidden; document.body.classList.remove('off'); renderStrip(); toolArrows(); };
   byId('bAdj').onclick = function () { el.sTools.hidden = true; el.sAdj.hidden = !el.sAdj.hidden; document.body.classList.remove('off'); };
   byId('tClose').onclick = closeSheets; byId('aClose').onclick = closeSheets;
   byId('bBack').onclick = function () { closeSheets(); el.sRes.hidden = true; goHome(); };
@@ -756,7 +815,7 @@ function workerMain() {
   function addBlobs(files) { for (var i = 0; i < files.length; i++) addOne(files[i]); renderHome(); }
   function renderHome() {
     var box = byId('hThumbs'); box.innerHTML = '';
-    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; else { d.className = 'th num'; d.textContent = String(S.pages.length + i + 1); } var x = document.createElement('b'); x.textContent = '×'; x.onclick = function () { queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
+    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; else { d.className = 'th num'; d.textContent = String(S.pages.length + i + 1); } var x = document.createElement('b'); x.textContent = 'Ã—'; x.onclick = function () { queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
     var n = queue.length + S.pages.length;
     byId('hGo').disabled = !n; byId('hGo').textContent = n ? 'Review ' + pageWord(n) : 'Review pages';
     byId('hHint').hidden = n > 0; byId('hClear').hidden = !n; byId('hCam').textContent = n ? 'Take more photos' : 'Take photos';

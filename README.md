@@ -57,6 +57,14 @@ The floor is Safari 12, which runs on the iPhone 5s and 6. The design follows fr
 - Node with the JavaScript optimizer off and WebAssembly held to its baseline tier, a stand-in for a cold, slow engine (`node --no-opt --liftoff-only --no-wasm-tier-up test/wasm-check.mjs`). One page at 200 dpi takes **6.1 seconds in JavaScript and 0.85 seconds in WebAssembly**. The app picks WebAssembly. WebAssembly and JavaScript agree to within one gray level on 0.02 percent of ink pixels.
 - The first version took over a minute for one page on a phone, with no progress shown.
 
+## When a page seems stuck
+
+A photo from a phone is about 12 megapixels. Opening it ran on the main thread and could freeze the screen on a slow phone, with the words "Reading the photo" and nothing moving. Now:
+
+- Where the browser can decode a photo off the main thread (`createImageBitmap`, not used in Safari's engine, where it measured slower), it does.
+- A clock counts the seconds on any step that takes more than three.
+- If a worker says nothing for 25 seconds, the app replaces it and tries the page again at a lower resolution. A photo that never opens ends with an error after 90 seconds. `node test/hang.mjs` checks the recovery. `node test/stall.mjs 20` runs a real photo with the CPU slowed twenty times.
+
 ## Host it yourself
 
 The app is one file, `index.html`. GitHub Pages serves it from this repository. To change it, edit `app.template.html`, `core.js` or `pdf.js`, then run `npm install` and `node build.mjs`, and commit the new `index.html`.

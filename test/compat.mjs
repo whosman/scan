@@ -16,7 +16,7 @@ scripts.forEach((s, i) => {
 // the worker source is a function inside the app script; its text is covered by the parse above.
 
 const apis = [
-  [/createImageBitmap\s*\(/, 'createImageBitmap (Safari 15+)'], [/OffscreenCanvas/, 'OffscreenCanvas (Safari 16.4+)'], [/CompressionStream|DecompressionStream/, 'CompressionStream (Safari 16.4+)'],
+  [/createImageBitmap\s*\(/, 'createImageBitmap (Safari 15+)', (src) => /!window\.createImageBitmap/.test(src) && /bmpAuto !== null/.test(src)], [/OffscreenCanvas/, 'OffscreenCanvas (Safari 16.4+)'], [/CompressionStream|DecompressionStream/, 'CompressionStream (Safari 16.4+)'],
   [/\bPointerEvent\b|['"]pointer(down|move|up)['"]|setPointerCapture/, 'Pointer Events (Safari 13+)'], [/structuredClone/, 'structuredClone (Safari 15.4+)'],
   [/\.replaceAll\(/, 'replaceAll (Safari 13.1+)'], [/\.at\(-?\d/, 'Array.at (Safari 15.4+)'], [/\.flat\(|\.flatMap\(/, 'flat/flatMap (Safari 12 has them, 11 does not)'],
   [/Object\.fromEntries/, 'Object.fromEntries (Safari 12.1+)'], [/\bBigInt\b|\d+n\b/, 'BigInt (Safari 14+)'], [/requestIdleCallback/, 'requestIdleCallback (not in Safari)'],
@@ -27,7 +27,8 @@ const apis = [
 const code = scripts.join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');   // ignore comments
 // ignore the fflate/vendor block when checking app code
 const app = scripts[scripts.length - 1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-for (const [re, label] of apis) { if (re.test(app)) fail('app uses ' + label); }
+// an entry may carry a third item: a test that says the use is guarded by a feature check, so it is allowed
+for (const [re, label, guarded] of apis) { if (re.test(app) && !(guarded && guarded(app))) fail('app uses ' + label); }
 const lib = scripts.find((s) => s.includes('fflate')) || '';
 if (/\?\.\w|\?\?[^?]/.test(lib.replace(/"[^"]*"|'[^']*'/g, ''))) console.log('note: library contains ?. or ?? outside strings (checked by the parse above)');
 
