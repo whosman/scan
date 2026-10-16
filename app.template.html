@@ -41,7 +41,9 @@ label{display:block}
 .grow{flex:1;min-width:0}
 .warn{color:#a40000}
 .paste{border:1px solid #000;padding:14px 12px;margin:0 0 12px;min-height:44px;font-size:16px;-webkit-user-select:text;user-select:text}
-.pickwrap{position:relative;display:block}
+.lblbtn{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;text-align:center;font-size:16px;color:#000;background:#fff;border:1px solid #000;min-height:44px;box-sizing:border-box;padding:0 14px;cursor:pointer}
+.lblbtn:active{background:#ddd}
+label.lnk{display:inline}
 .pickwrap button{display:block;width:100%;pointer-events:none}
 .pickwrap input{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;font-size:16px;margin:0;cursor:pointer}
 .thumbs{display:flex;flex-wrap:wrap;margin:0 -4px}
@@ -110,10 +112,10 @@ body.fade .sheet{opacity:.15}
 <section id="home" class="scr doc">
   <h1>Scan</h1>
   <p>Photograph handwritten pages. Get one clean PDF.</p>
-  <p class="row"><button id="hCam" class="main grow">Take photos</button><span class="pickwrap grow"><button id="hPick" tabindex="-1">Choose files</button><input type="file" id="fPick" accept="image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" multiple></span></p>
+  <p class="row"><button id="hCam" class="main grow">Take photos</button><label id="hPick" class="lblbtn grow">Choose files<input type="file" id="fPick" accept="image/*" multiple hidden></label></p>
   <p class="small" id="hHint">Lay each page flat on a dark surface, whole page in view. Scan finds the edges and straightens it.</p>
   <p class="small warn" id="hWarn" hidden></p>
-  <p class="small">Photos not coming in? <a id="hOne" href="#">Pick one photo</a> or <a id="hPaste" href="#">paste a copied photo</a>.</p>
+  <p class="small">Photos not coming in? <a id="hOne" href="#">Pick one photo</a>, <label for="fOrig" class="lnk" id="hOrig">pick the originals</label>, or <a id="hPaste" href="#">paste a copied photo</a>.</p>
   <div id="pasteBox" class="paste" contenteditable="true" hidden>Touch and hold here, then tap Paste.</div>
   <div class="thumbs" id="hThumbs"></div>
   <hr>
@@ -121,6 +123,7 @@ body.fade .sheet{opacity:.15}
   <p class="small" id="hClear" hidden><a id="hClearA" href="#">Discard all pages</a></p>
   <p class="small">Everything happens in this browser. Nothing is uploaded. <a id="hDiag" href="#">Check this phone</a> <span id="hVer"></span></p>
   <input type="file" id="fOne" accept="image/*" hidden>
+  <input type="file" id="fOrig" accept="image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" multiple hidden>
   <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
 </section>
 
@@ -297,7 +300,7 @@ function workerMain() {
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
   }
   // Nothing fails silently: any error is shown on screen and kept for the Check this phone report.
-  var VERSION = 'v8', errLog = [];
+  var VERSION = 'v9', errLog = [];
   try { byId('hVer').textContent = VERSION; } catch (eV) {}
   function noteErr(msg) { errLog.push(String(msg).slice(0, 200)); if (errLog.length > 20) errLog.shift(); toast('Something went wrong: ' + String(msg).slice(0, 120)); }
   window.addEventListener('error', function (e) { noteErr(e.message || 'error'); });
@@ -869,7 +872,7 @@ function workerMain() {
     clearInterval(pollT); var n = 0;
     pollT = setInterval(function () { n++; if (inp.files && inp.files.length) { clearInterval(pollT); onFiles({ target: inp }); } else if (n > 600) clearInterval(pollT); }, 400);
   }
-  ['fPick', 'fOne', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { queueMark = queue.length; pickWait = true; plog('tap ' + id + ' (click)'); watchInput(inp); }); });
+  ['fPick', 'fOne', 'fOrig', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { queueMark = queue.length; pickWait = true; plog('tap ' + id + ' (click)'); watchInput(inp); }); });
   // A way in that does not use the file picker: copy a photo in Photos, then paste it here.
   function takePasted(cd) {
     var out = [], items = (cd && cd.items) || [], i; for (i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { var f = items[i].getAsFile(); if (f) out.push(f); }
