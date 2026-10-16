@@ -77,6 +77,19 @@ The first report from a real iPhone (iOS 17, Safari) showed no WebAssembly, no F
 
 ode test/lockdown.mjs stands in for this phone: Edge with the compiler off (which also removes WebAssembly), no FileReader and no camera API. A page takes about 9 seconds at 90 dpi there, down from 25 seconds, and the report completes. Turning Lockdown Mode off for this site in Safari makes Scan about ten times faster.
 
+## Choosing photos from the library
+
+On iOS the photo library picker can hand back nothing, or Safari can restart the page while it is open, and neither raises an error. Scan now:
+
+- records what the picker did (tap, files, return) and keeps it across a restart;
+- says so on the home screen if no photo came back, or if Safari restarted the page;
+- offers a second route, **Pick one photo**, which asks iOS to convert the photo itself. Choose files asks for the original file, so iOS does not convert it;
+- puts the version and the picker log in the Check this phone report;
+- loads the page from the network first, so an update shows on the next open.
+
+
+ode test/pick.mjs covers the tap, the chosen photo, files that arrive with no event, the no-photo message and the restart message.
+
 ## Host it yourself
 
 The app is one file, `index.html`. GitHub Pages serves it from this repository. To change it, edit `app.template.html`, `core.js` or `pdf.js`, then run `npm install` and `node build.mjs`, and commit the new `index.html`.

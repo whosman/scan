@@ -22,6 +22,19 @@ await p.evaluate(() => { const i = document.getElementById('fPick'); i.dispatchE
 await p.evaluate(async () => { const r = await fetch('/icons/icon-192.png'); const blob = await r.blob(); const dt = new DataTransfer(); dt.items.add(new File([blob], 'x.png', { type: 'image/png' })); document.getElementById('fPick').files = dt.files; });
 await p.waitForFunction(() => document.querySelectorAll('#hThumbs .th').length >= 1, null, { timeout: 6000 }).catch(() => {});
 ok(await p.evaluate(() => document.querySelectorAll('#hThumbs .th').length >= 1), 'files that arrive with no event are found by the poll');
+// 2b. the picker returns nothing: the page says so; and a restart during picking is reported
+await p.goto('http://127.0.0.1:8802/');
+const bx = await p.evaluate(() => { const r = document.getElementById('hPick').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+const [ch2] = await Promise.all([p.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null), p.touchscreen.tap(bx.x, bx.y)]);
+await p.touchscreen.tap(160, 500);   // the first touch after the picker closed
+await p.waitForFunction(() => !document.getElementById('hWarn').hidden, null, { timeout: 8000 }).catch(() => {});
+ok(await p.evaluate(() => /did not hand over a photo/.test(document.getElementById('hWarn').textContent)), 'no photo came back: the page says so');
+await p.evaluate(() => { sessionStorage.setItem('scan_plog', JSON.stringify(['0.0 s tap fPick (click)'])); });
+await p.reload();
+ok(await p.evaluate(() => /restarted this page/.test(document.getElementById('hWarn').textContent)), 'a restart while picking is reported');
+await p.evaluate(() => window.__diag()); await p.waitForFunction(() => /Verdict|FAILED/.test(document.getElementById('dOut').textContent), null, { timeout: 60000 });
+ok(await p.evaluate(() => /Version: v\d+/.test(document.getElementById('dOut').textContent) && /Picker log/.test(document.getElementById('dOut').textContent)), 'the report carries the version and the picker log');
+await p.goto('http://127.0.0.1:8802/');
 // 3. the tools row
 await p.evaluate(() => { document.getElementById('hClearA').click(); });
 await p.setInputFiles('#fOne', [photo]);

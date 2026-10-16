@@ -39,6 +39,7 @@ label{display:block}
 .row{display:flex;align-items:center}
 .row>*+*{margin-left:8px}
 .grow{flex:1;min-width:0}
+.warn{color:#a40000}
 .pickwrap{position:relative;display:block}
 .pickwrap button{display:block;width:100%;pointer-events:none}
 .pickwrap input{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;font-size:16px;margin:0;cursor:pointer}
@@ -108,14 +109,15 @@ body.fade .sheet{opacity:.15}
 <section id="home" class="scr doc">
   <h1>Scan</h1>
   <p>Photograph handwritten pages. Get one clean PDF.</p>
-  <p class="row"><button id="hCam" class="main grow">Take photos</button><span class="pickwrap grow"><button id="hPick" tabindex="-1">Choose files</button><input type="file" id="fPick" accept="image/*" multiple></span></p>
+  <p class="row"><button id="hCam" class="main grow">Take photos</button><span class="pickwrap grow"><button id="hPick" tabindex="-1">Choose files</button><input type="file" id="fPick" accept="image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" multiple></span></p>
   <p class="small" id="hHint">Lay each page flat on a dark surface, whole page in view. Scan finds the edges and straightens it.</p>
-  <p class="small">Choose files not responding? <a id="hOne" href="#">Pick one photo</a>.</p>
+  <p class="small warn" id="hWarn" hidden></p>
+  <p class="small">Choose files not working? <a id="hOne" href="#">Pick one photo</a> the other way.</p>
   <div class="thumbs" id="hThumbs"></div>
   <hr>
   <p class="row"><button id="hGo" class="main grow" disabled>Review pages</button></p>
   <p class="small" id="hClear" hidden><a id="hClearA" href="#">Discard all pages</a></p>
-  <p class="small">Everything happens in this browser. Nothing is uploaded. <a id="hDiag" href="#">Check this phone</a></p>
+  <p class="small">Everything happens in this browser. Nothing is uploaded. <a id="hDiag" href="#">Check this phone</a> <span id="hVer"></span></p>
   <input type="file" id="fOne" accept="image/*" hidden>
   <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
 </section>
@@ -1126,7 +1128,8 @@ function workerMain() {
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
   }
   // Nothing fails silently: any error is shown on screen and kept for the Check this phone report.
-  var errLog = [];
+  var VERSION = 'v7', errLog = [];
+  try { byId('hVer').textContent = VERSION; } catch (eV) {}
   function noteErr(msg) { errLog.push(String(msg).slice(0, 200)); if (errLog.length > 20) errLog.shift(); toast('Something went wrong: ' + String(msg).slice(0, 120)); }
   window.addEventListener('error', function (e) { noteErr(e.message || 'error'); });
   window.addEventListener('unhandledrejection', function (e) { noteErr((e.reason && e.reason.message) || e.reason || 'error'); });
@@ -1677,8 +1680,17 @@ function workerMain() {
     byId('hHint').hidden = n > 0; byId('hClear').hidden = !n; byId('hCam').textContent = n ? 'More photos' : 'Take photos';
   }
   function goHome() { show('home'); renderHome(); }
+  // What the picker did, kept across a page restart. It goes into the Check this phone report.
+  var pickLog = [], pickT0 = Date.now(), pickWait = false, pickTimer = 0, prevLog = null;
+  try { prevLog = JSON.parse(sessionStorage.getItem('scan_plog') || 'null'); } catch (e0) {}
+  function plog(s) { pickLog.push(((Date.now() - pickT0) / 1000).toFixed(1) + ' s ' + s); if (pickLog.length > 30) pickLog.shift(); try { sessionStorage.setItem('scan_plog', JSON.stringify(pickLog)); } catch (e1) {} }
+  function showWarn(t) { var w = byId('hWarn'); w.textContent = t; w.hidden = !t; }
+  if (prevLog && prevLog.length && /click/.test(prevLog[prevLog.length - 1]) && !/files/.test(prevLog.join(' '))) showWarn('Safari restarted this page while you were choosing a photo, so nothing was added. Use Take photos, or close other tabs and try again.');
+  // the picker covers the page; the first touch afterwards means it has closed. Give the photo a moment, then say so if none came.
+  document.addEventListener('touchstart', function () { if (!pickWait) return; pickWait = false; plog('back on the page'); clearTimeout(pickTimer); pickTimer = setTimeout(function () { if (!queueGrew()) { plog('no photo arrived'); showWarn('Safari did not hand over a photo. Try Pick one photo below, or use Take photos.'); } }, 3500); }, true);
+  var queueMark = 0; function queueGrew() { return queue.length > queueMark; }
   function onFiles(e) {
-    var list = []; try { list = Array.prototype.slice.call(e.target.files || []); addBlobs(list); } catch (err) { noteErr(err.message || err); }
+    var list = []; try { list = Array.prototype.slice.call(e.target.files || []); if (list.length) { plog('files ' + list.length + ' via ' + (e.type || 'poll') + ', first ' + (list[0].type || 'no type') + ' ' + list[0].size + ' bytes'); showWarn(''); } addBlobs(list); } catch (err) { noteErr(err.message || err); }
     if (list.length) toast(list.length === 1 ? 'Added 1 photo.' : 'Added ' + list.length + ' photos.');
     try { e.target.value = ''; } catch (err2) {}
   }
@@ -1688,7 +1700,7 @@ function workerMain() {
     clearInterval(pollT); var n = 0;
     pollT = setInterval(function () { n++; if (inp.files && inp.files.length) { clearInterval(pollT); onFiles({ target: inp }); } else if (n > 600) clearInterval(pollT); }, 400);
   }
-  ['fPick', 'fOne', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { watchInput(inp); }); });
+  ['fPick', 'fOne', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { queueMark = queue.length; pickWait = true; plog('tap ' + id + ' (click)'); watchInput(inp); }); });
   byId('hOne').onclick = function (e) { e.preventDefault(); var inp = byId('fOne'); watchInput(inp); inp.click(); };
   byId('hClearA').onclick = function (e) { e.preventDefault(); if (!confirm('Discard all pages?')) return; queue = []; newScan(); };
   var stream = null;
@@ -1733,6 +1745,8 @@ function workerMain() {
     dLine('Scan check, ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
     dLine('Browser: ' + navigator.userAgent);
     dLine('Screen: ' + screen.width + 'x' + screen.height + ' at ' + (window.devicePixelRatio || 1) + 'x, window ' + window.innerWidth + 'x' + window.innerHeight);
+    dLine('Version: ' + VERSION);
+    if (pickLog.length || prevLog) { dLine('Picker log:'); (prevLog && !pickLog.length ? prevLog : pickLog).forEach(function (l) { dLine('  ' + l); }); }
     if (errLog.length) { dLine('Errors so far:'); errLog.forEach(function (l) { dLine('  ' + l); }); }
     dLine('Cores: ' + (navigator.hardwareConcurrency || 'unknown') + ', memory hint: ' + (navigator.deviceMemory || 'unknown'));
     dLine('');
