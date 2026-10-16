@@ -14,7 +14,11 @@ let bad = 0; const ok = (c, m) => { console.log(c ? 'ok  ' : 'FAIL', m); if (!c)
 async function fresh() {
   const page = await browser.newPage();
   await page.setViewport({ width: 320, height: 568, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
-  await page.evaluateOnNewDocument(() => { delete window.FileReader; delete window.WebAssembly; Object.defineProperty(navigator, 'mediaDevices', { value: undefined }); });
+  await page.evaluateOnNewDocument(() => { delete window.FileReader; delete window.WebAssembly; Object.defineProperty(navigator, 'mediaDevices', { value: undefined });
+    // Safari's fingerprint protection nudges canvas read-back values (the real report showed alpha 253 for an opaque pixel)
+    const gid = CanvasRenderingContext2D.prototype.getImageData; let seed = 7;
+    CanvasRenderingContext2D.prototype.getImageData = function () { const d = gid.apply(this, arguments), a = d.data; for (let i = 0; i < a.length; i += 4) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; const r = (seed >> 16) % 3; a[i + 3] = Math.max(0, a[i + 3] - 2); if (r === 2) a[i] = Math.max(0, a[i] - 1); } return d; };
+  });
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
   await page.goto('http://127.0.0.1:8799/');
   return page;

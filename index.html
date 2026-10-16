@@ -1123,6 +1123,11 @@ function workerMain() {
     var t = byId('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
   }
+  // Nothing fails silently: any error is shown on screen and kept for the Check this phone report.
+  var errLog = [];
+  function noteErr(msg) { errLog.push(String(msg).slice(0, 200)); if (errLog.length > 20) errLog.shift(); toast('Something went wrong: ' + String(msg).slice(0, 120)); }
+  window.addEventListener('error', function (e) { noteErr(e.message || 'error'); });
+  window.addEventListener('unhandledrejection', function (e) { noteErr((e.reason && e.reason.message) || e.reason || 'error'); });
   function show(which) { ['home', 'cam', 'rev', 'crop', 'diag'].forEach(function (k) { var e = document.getElementById(k); if (e) e.hidden = k !== which; }); }
   function fmtMB(n) { return (n / 1048576).toFixed(n > 1e7 ? 1 : 2) + ' MB'; }
   function optsNow() { return { gamma: S.set.ink, floorK: S.set.bg, weight: S.set.lw, ruleSuppress: S.set.rules ? 1 : 0 }; }
@@ -1219,7 +1224,7 @@ function workerMain() {
     x.drawImage(im, -dw / 2, -dh / 2, dw, dh); x.restore();
     T.push(performance.now());
     var big = x.getImageData(0, 0, w, h);
-    for (var pi = 0, blocked = true; pi < 24; pi++) { if (big.data[((Math.floor(h * (pi + 1) / 25) * w) + Math.floor(w * ((pi * 7) % 24 + 1) / 25)) * 4 + 3] === 255) { blocked = false; break; } }
+    for (var pi = 0, blocked = true; pi < 24; pi++) { if (big.data[((Math.floor(h * (pi + 1) / 25) * w) + Math.floor(w * ((pi * 7) % 24 + 1) / 25)) * 4 + 3] > 128) { blocked = false; break; } }   // fingerprint protection may nudge 255 to 253; only an empty read-back is blocked
     if (blocked) throw new Error('This browser blocks reading photo pixels. If Lockdown Mode or a privacy setting is on for this site, turn it off for Scan.');
     T.push(performance.now());
     var sk = Math.min(1, 640 / Math.max(w, h)), smw = Math.max(8, Math.round(w * sk)), smh = Math.max(8, Math.round(h * sk));
@@ -1327,7 +1332,7 @@ function workerMain() {
         if (w.dead) { pg.state = 'new'; pg.dpiScale = 0.75; pg.tried = true; updateStatus(); pump(); return; }
         return runAnalysis(pg, w, Math.round(dpi * 0.75), true);
       }
-      pg.state = 'error'; pg.error = String(e.message || e);
+      pg.state = 'error'; pg.error = String(e.message || e); if (pg === S.pages[S.cur]) renderError(pg);
     }
     w.busy = false; updateStatus(); renderStrip(); updateBar(); pump();
   }
@@ -1448,6 +1453,12 @@ function workerMain() {
     if (m[1]) { var b = document.createElement('button'); b.textContent = m[1][0]; b.onclick = m[1][1]; n.appendChild(b); }
     n.style.top = el.top.offsetHeight + 'px'; n.hidden = false;
   }
+  // A page that failed says why, in words, and offers to try again.
+  function renderError(pg) {
+    var n = el.note; n.innerHTML = ''; var t = document.createElement('span'); t.textContent = 'This page could not be read. ' + String(pg.error || '').replace(/^Error: /, '').slice(0, 160); n.appendChild(t);
+    var b = document.createElement('button'); b.textContent = 'Try again'; b.onclick = function () { pg.state = 'new'; pg.error = null; pg.tried = false; pg.dpiScale = 0.75; n.hidden = true; updateStatus(); updateBar(); pump(); }; n.appendChild(b);
+    n.style.top = el.top.offsetHeight + 'px'; n.hidden = false; document.body.classList.remove('off');
+  }
   function onPageReady(pg, gray) {
     if (pg === S.pages[S.cur]) { drawGray(gray, pg.w, pg.h); renderNote(pg); } else { makeGrayThumb(pg, gray); }
   }
@@ -1469,7 +1480,7 @@ function workerMain() {
       var r = await callWorker(pg.worker, { type: 'shape', id: pg.id, opts: optsNow(), mode: pg.mode });
       if (pg !== S.pages[S.cur]) return;
       pg.quality = r.quality; drawGray(new Uint8Array(r.gray), pg.w, pg.h); renderNote(pg);
-    } else { view.w = 0; el.view.width = 1; el.view.height = 1; }
+    } else { view.w = 0; el.view.width = 1; el.view.height = 1; if (pg.state === 'error') renderError(pg); }
     updateBar(); pump();
   }
   function updateBar() {
@@ -1602,24 +1613,25 @@ function workerMain() {
   }
   async function savePdf(size) {
     if (S.busy) return; S.busy = true; closeSheets(); document.body.classList.remove('off'); el.sRes.hidden = false;
-    var n = S.pages.length, pages = [];
+    var todo = S.pages.filter(function (p) { return p.state === 'ready'; }), skipped = S.pages.length - todo.length, n = todo.length, pages = [];   // a page that could not be read has nothing to save
+    if (!n) { S.busy = false; resText('Nothing to save', 'No page could be read. Open Pages and try the photos again.', -1, false, true); return; }
     S.size = size || S.set.size || 200; resText('Building the PDF', 'Page 1 of ' + n, 0, false, false);
     try {
       for (var i = 0; i < n; i++) {
-        var pg = S.pages[i], w = pg.worker, outDpi = S.size, res;
+        var pg = todo[i], pgIndex = S.pages.indexOf(pg), w = pg.worker, outDpi = S.size, res;
         var onP = (function (ii) { return function (f, lab) { resText('Building the PDF', 'Page ' + (ii + 1) + ' of ' + n + '. ' + (lab || ''), (ii + f) / n, false, false); }; })(i);
         if (outDpi > pg.dpi * 1.15) {   // more than the working resolution: read the photo again at full size
           var d = await decodePhoto(pg.blob, pg.rot, Math.round(11 * outDpi * 1.3));
-          res = await callWorker(w, { type: 'exportFull', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: pg.quadN, dpi: outDpi, opts: optsNow(), mode: pg.mode, stamp: makeStamp(i, outDpi) }, [d.buf], onP);
+          res = await callWorker(w, { type: 'exportFull', id: pg.id, buf: d.buf, sw: d.w, sh: d.h, quadN: pg.quadN, dpi: outDpi, opts: optsNow(), mode: pg.mode, stamp: makeStamp(pgIndex, outDpi) }, [d.buf], onP);
         } else {
-          res = await callWorker(w, { type: 'export', id: pg.id, opts: optsNow(), mode: pg.mode, outDpi: outDpi, stamp: makeStamp(i, Math.min(outDpi, pg.dpi)) }, [], onP);
+          res = await callWorker(w, { type: 'export', id: pg.id, opts: optsNow(), mode: pg.mode, outDpi: outDpi, stamp: makeStamp(pgIndex, Math.min(outDpi, pg.dpi)) }, [], onP);
         }
         pages.push({ w: res.w, h: res.h, dpi: res.dpi, z: new Uint8Array(res.z) });
         resText('Building the PDF', 'Page ' + (i + 1) + ' of ' + n, (i + 1) / n, false, false);
       }
       var nm = S.pendingName || nextName();
       S.pdf = { bytes: buildPdf(pages, { title: nm }), size: 0, dpi: S.size, pages: n }; S.pdf.size = S.pdf.bytes.length;
-      S.busy = false; showResult();
+      S.busy = false; showResult(); if (skipped) toast(skipped + (skipped === 1 ? ' page' : ' pages') + ' could not be read and ' + (skipped === 1 ? 'was' : 'were') + ' left out.');
     } catch (e) { console.error(e); S.busy = false; resText('Could not build the PDF', String(e.message || e).slice(0, 160), -1, false, true); }
   }
   function showResult() {
@@ -1657,14 +1669,19 @@ function workerMain() {
   function addBlobs(files) { for (var i = 0; i < files.length; i++) addOne(files[i]); renderHome(); }
   function renderHome() {
     var box = byId('hThumbs'); box.innerHTML = '';
-    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; else { d.className = 'th num'; d.textContent = String(S.pages.length + i + 1); } var x = document.createElement('b'); x.textContent = 'Ã—'; x.onclick = function () { queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
+    queue.forEach(function (o, i) { var d = document.createElement('div'); d.className = 'th'; if (o.thumbSrc) d.style.backgroundImage = 'url(' + o.thumbSrc + ')'; else { d.className = 'th num'; d.textContent = String(S.pages.length + i + 1); } var x = document.createElement('b'); x.textContent = '\u00d7'; x.onclick = function () { queue.splice(i, 1); renderHome(); }; d.appendChild(x); box.appendChild(d); });
     var n = queue.length + S.pages.length;
     byId('hGo').disabled = !n; byId('hGo').textContent = n ? 'Review ' + pageWord(n) : 'Review pages';
-    byId('hHint').hidden = n > 0; byId('hClear').hidden = !n; byId('hCam').textContent = n ? 'Take more photos' : 'Take photos';
+    byId('hHint').hidden = n > 0; byId('hClear').hidden = !n; byId('hCam').textContent = n ? 'More photos' : 'Take photos';
   }
   function goHome() { show('home'); renderHome(); }
-  byId('fPick').addEventListener('change', function (e) { addBlobs(Array.prototype.slice.call(e.target.files)); e.target.value = ''; });
-  byId('fCam').addEventListener('change', function (e) { addBlobs(Array.prototype.slice.call(e.target.files)); e.target.value = ''; });
+  function onFiles(e) {
+    var list = []; try { list = Array.prototype.slice.call(e.target.files || []); addBlobs(list); } catch (err) { noteErr(err.message || err); }
+    if (list.length) toast(list.length === 1 ? 'Added 1 photo.' : 'Added ' + list.length + ' photos.');
+    try { e.target.value = ''; } catch (err2) {}
+  }
+  byId('fPick').addEventListener('change', onFiles);
+  byId('fCam').addEventListener('change', onFiles);
   byId('hPick').onclick = function () { byId('fPick').click(); };
   byId('hClearA').onclick = function (e) { e.preventDefault(); if (!confirm('Discard all pages?')) return; queue = []; newScan(); };
   var stream = null;
@@ -1709,6 +1726,7 @@ function workerMain() {
     dLine('Scan check, ' + new Date().toISOString().slice(0, 19).replace('T', ' '));
     dLine('Browser: ' + navigator.userAgent);
     dLine('Screen: ' + screen.width + 'x' + screen.height + ' at ' + (window.devicePixelRatio || 1) + 'x, window ' + window.innerWidth + 'x' + window.innerHeight);
+    if (errLog.length) { dLine('Errors so far:'); errLog.forEach(function (l) { dLine('  ' + l); }); }
     dLine('Cores: ' + (navigator.hardwareConcurrency || 'unknown') + ', memory hint: ' + (navigator.deviceMemory || 'unknown'));
     dLine('');
     dLine('Features');
@@ -1718,7 +1736,7 @@ function workerMain() {
     // the largest canvas this phone will give us
     var sizes = [[2063, 2750], [2550, 3300], [3000, 4000], [4096, 4096]], got = 0;
     var cdet = [];
-    sizes.forEach(function (s) { try { var c = document.createElement('canvas'); c.width = s[0]; c.height = s[1]; var x = c.getContext('2d'); if (!x) { cdet.push(s[0] + 'x' + s[1] + ': no 2d context'); return; } x.fillStyle = '#000'; x.fillRect(0, 0, 8, 8); var px = x.getImageData(0, 0, 1, 1).data; cdet.push(s[0] + 'x' + s[1] + ': pixel ' + px[0] + ',' + px[1] + ',' + px[2] + ',' + px[3]); if (px[3] === 255) got = s[0] * s[1]; c.width = c.height = 0; } catch (e) { cdet.push(s[0] + 'x' + s[1] + ': ' + String(e.message || e).slice(0, 60)); } });
+    sizes.forEach(function (s) { try { var c = document.createElement('canvas'); c.width = s[0]; c.height = s[1]; var x = c.getContext('2d'); if (!x) { cdet.push(s[0] + 'x' + s[1] + ': no 2d context'); return; } x.fillStyle = '#000'; x.fillRect(0, 0, 8, 8); var px = x.getImageData(0, 0, 1, 1).data; cdet.push(s[0] + 'x' + s[1] + ': pixel ' + px[0] + ',' + px[1] + ',' + px[2] + ',' + px[3]); if (px[3] > 128) got = s[0] * s[1]; c.width = c.height = 0; } catch (e) { cdet.push(s[0] + 'x' + s[1] + ': ' + String(e.message || e).slice(0, 60)); } });
     dLine('  largest canvas that worked: ' + (got / 1e6).toFixed(1) + ' megapixels');
     cdet.forEach(function (l) { dLine('    ' + l); });
     if (autoOrient === null) await Promise.race([detectAutoOrient(), sleepMs(4000)]);

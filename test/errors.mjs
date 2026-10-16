@@ -1,0 +1,26 @@
+// A photo that cannot be read must say so on screen, offer Try again, and not break Save.
+import { webkit } from 'playwright-core';
+import path from 'node:path'; import http from 'node:http'; import fs from 'node:fs';
+const root = path.resolve('.');
+const srv = http.createServer((q, r) => { let p = new URL(q.url, 'http://x').pathname; if (p === '/') p = '/index.html'; const f = path.join(root, p); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream' }); r.end(fs.readFileSync(f)); });
+await new Promise((r) => srv.listen(8801, '127.0.0.1', r));
+const b = await webkit.launch(); const c = await b.newContext({ viewport: { width: 320, height: 568 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true }); const p = await c.newPage();
+let bad = 0; const ok = (v, m) => { console.log(v ? 'ok  ' : 'FAIL', m); if (!v) bad++; };
+await p.goto('http://127.0.0.1:8801/');
+fs.mkdirSync('test/out', { recursive: true }); fs.writeFileSync('test/out/broken.jpg', 'this is not a photo');
+await p.setInputFiles('#fPick', [path.resolve('test/out/broken.jpg'), path.resolve('../IMG_6142.jpeg')]);
+await p.waitForFunction(() => document.querySelectorAll('#hThumbs .th').length === 2);
+ok(await p.evaluate(() => document.getElementById('toast') && !document.getElementById('toast').hidden && /Added 2 photos/.test(document.getElementById('toast').textContent)), 'choosing files says "Added 2 photos"');
+ok(await p.evaluate(() => /^×$|×/.test(document.querySelector('#hThumbs .th b').textContent)), 'remove mark is a multiplication sign');
+await p.click('#hGo');
+await p.waitForFunction(() => window.__scan.pages.every((q) => q.state === 'ready' || q.state === 'error'), null, { timeout: 90000 });
+const st = await p.evaluate(() => window.__scan.pages.map((q) => q.state));
+ok(st[0] === 'error' && st[1] === 'ready', 'broken file errors, good file is ready: ' + st);
+await p.click('#bPrev').catch(() => {}); await p.waitForTimeout(300);
+const note = await p.evaluate(() => { const n = document.getElementById('note'); return n.hidden ? '' : n.textContent; });
+ok(/could not be read/.test(note) && /Try again/.test(note), 'the page says why and offers Try again: ' + note.slice(0, 80));
+await p.screenshot({ path: 'test/out/error.png' });
+await p.evaluate(() => document.getElementById('bSave').click());
+await p.waitForFunction(() => window.__scan.pdf && window.__scan.pdf.size, null, { timeout: 60000 });
+ok(await p.evaluate(() => window.__scan.pdf.pages === 1), 'Save leaves the broken page out and builds a 1-page PDF');
+await b.close(); srv.close(); process.exit(bad ? 1 : 0);
