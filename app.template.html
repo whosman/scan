@@ -112,10 +112,10 @@ body.fade .sheet{opacity:.15}
 <section id="home" class="scr doc">
   <h1>Scan</h1>
   <p>Photograph handwritten pages. Get one clean PDF.</p>
-  <p class="row"><button id="hCam" class="main grow">Take photos</button><label id="hPick" class="lblbtn grow">Choose files<input type="file" id="fPick" accept="image/*" multiple hidden></label></p>
+  <p class="row"><button id="hCam" class="main grow">Take photos</button><label id="hPick" class="lblbtn grow">Choose files<input type="file" id="fPick" accept="image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" multiple hidden></label></p>
   <p class="small" id="hHint">Lay each page flat on a dark surface, whole page in view. Scan finds the edges and straightens it.</p>
   <p class="small warn" id="hWarn" hidden></p>
-  <p class="small">Photos not coming in? <a id="hOne" href="#">Pick one photo</a>, <label for="fOrig" class="lnk" id="hOrig">pick the originals</label>, or <a id="hPaste" href="#">paste a copied photo</a>.</p>
+  <p class="small">Photos not coming in? <a id="hOne" href="#">Pick one photo</a> or <a id="hPaste" href="#">paste a copied photo</a>.</p>
   <div id="pasteBox" class="paste" contenteditable="true" hidden>Touch and hold here, then tap Paste.</div>
   <div class="thumbs" id="hThumbs"></div>
   <hr>
@@ -123,7 +123,6 @@ body.fade .sheet{opacity:.15}
   <p class="small" id="hClear" hidden><a id="hClearA" href="#">Discard all pages</a></p>
   <p class="small">Everything happens in this browser. Nothing is uploaded. <a id="hDiag" href="#">Check this phone</a> <span id="hVer"></span></p>
   <input type="file" id="fOne" accept="image/*" hidden>
-  <input type="file" id="fOrig" accept="image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif" multiple hidden>
   <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
 </section>
 
@@ -300,7 +299,7 @@ function workerMain() {
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
   }
   // Nothing fails silently: any error is shown on screen and kept for the Check this phone report.
-  var VERSION = 'v9', errLog = [];
+  var VERSION = 'v10', errLog = [];
   try { byId('hVer').textContent = VERSION; } catch (eV) {}
   function noteErr(msg) { errLog.push(String(msg).slice(0, 200)); if (errLog.length > 20) errLog.shift(); toast('Something went wrong: ' + String(msg).slice(0, 120)); }
   window.addEventListener('error', function (e) { noteErr(e.message || 'error'); });
@@ -859,7 +858,7 @@ function workerMain() {
   function showWarn(t) { var w = byId('hWarn'); w.textContent = t; w.hidden = !t; }
   if (prevLog && prevLog.length && /click/.test(prevLog[prevLog.length - 1]) && !/files/.test(prevLog.join(' '))) showWarn('Safari restarted this page while you were choosing a photo, so nothing was added. Use Take photos, or close other tabs and try again.');
   // the picker covers the page; the first touch afterwards means it has closed. Give the photo a moment, then say so if none came.
-  document.addEventListener('touchstart', function () { if (!pickWait) return; pickWait = false; plog('back on the page'); clearTimeout(pickTimer); pickTimer = setTimeout(function () { if (!queueGrew()) { plog('no photo arrived'); showWarn('Safari did not hand over a photo. Try Pick one photo below, or use Take photos.'); } }, 3500); }, true);
+  document.addEventListener('touchstart', function () { if (!pickWait) return; pickWait = false; plog('back on the page'); clearTimeout(pickTimer); pickTimer = setTimeout(function () { if (!queueGrew()) { plog('no photo arrived'); showWarn('Safari did not hand over a photo. In Lockdown Mode the photo picker can fail on large photos. Try Pick one photo or paste a copied photo below, or use Take photos.'); } }, 3500); }, true);
   var queueMark = 0; function queueGrew() { return queue.length > queueMark; }
   function onFiles(e) {
     var list = []; try { list = Array.prototype.slice.call(e.target.files || []); if (list.length) { plog('files ' + list.length + ' via ' + (e.type || 'poll') + ', first ' + (list[0].type || 'no type') + ' ' + list[0].size + ' bytes'); showWarn(''); } addBlobs(list); } catch (err) { noteErr(err.message || err); }
@@ -872,7 +871,7 @@ function workerMain() {
     clearInterval(pollT); var n = 0;
     pollT = setInterval(function () { n++; if (inp.files && inp.files.length) { clearInterval(pollT); onFiles({ target: inp }); } else if (n > 600) clearInterval(pollT); }, 400);
   }
-  ['fPick', 'fOne', 'fOrig', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { queueMark = queue.length; pickWait = true; plog('tap ' + id + ' (click)'); watchInput(inp); }); });
+  ['fPick', 'fOne', 'fCam'].forEach(function (id) { var inp = byId(id); inp.addEventListener('change', onFiles); inp.addEventListener('input', onFiles); inp.addEventListener('click', function () { queueMark = queue.length; pickWait = true; plog('tap ' + id + ' (click)'); watchInput(inp); }); });
   // A way in that does not use the file picker: copy a photo in Photos, then paste it here.
   function takePasted(cd) {
     var out = [], items = (cd && cd.items) || [], i; for (i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { var f = items[i].getAsFile(); if (f) out.push(f); }
