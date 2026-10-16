@@ -1,7 +1,7 @@
 // Offline cache. After one visit, the app opens with no connection.
 // The page itself is fetched from the network first (so an update shows on the next open, not the one after), then falls back to the cache.
 // Icons and the manifest come from the cache first.
-const CACHE = 'scan-v10';
+const CACHE = 'scan-v11';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

@@ -299,7 +299,7 @@ function workerMain() {
     t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { t.hidden = true; }, 2600);
   }
   // Nothing fails silently: any error is shown on screen and kept for the Check this phone report.
-  var VERSION = 'v10', errLog = [];
+  var VERSION = 'v11', errLog = [];
   try { byId('hVer').textContent = VERSION; } catch (eV) {}
   function noteErr(msg) { errLog.push(String(msg).slice(0, 200)); if (errLog.length > 20) errLog.shift(); toast('Something went wrong: ' + String(msg).slice(0, 120)); }
   window.addEventListener('error', function (e) { noteErr(e.message || 'error'); });
@@ -858,7 +858,7 @@ function workerMain() {
   function showWarn(t) { var w = byId('hWarn'); w.textContent = t; w.hidden = !t; }
   if (prevLog && prevLog.length && /click/.test(prevLog[prevLog.length - 1]) && !/files/.test(prevLog.join(' '))) showWarn('Safari restarted this page while you were choosing a photo, so nothing was added. Use Take photos, or close other tabs and try again.');
   // the picker covers the page; the first touch afterwards means it has closed. Give the photo a moment, then say so if none came.
-  document.addEventListener('touchstart', function () { if (!pickWait) return; pickWait = false; plog('back on the page'); clearTimeout(pickTimer); pickTimer = setTimeout(function () { if (!queueGrew()) { plog('no photo arrived'); showWarn('Safari did not hand over a photo. In Lockdown Mode the photo picker can fail on large photos. Try Pick one photo or paste a copied photo below, or use Take photos.'); } }, 3500); }, true);
+  document.addEventListener('touchstart', function () { if (!pickWait) return; pickWait = false; plog('back on the page'); clearTimeout(pickTimer); pickTimer = setTimeout(function () { if (!queueGrew()) { plog('no photo arrived'); showWarn('Safari did not hand over a photo. In Lockdown Mode the photo picker can fail on large photos. Try Pick one photo or paste a copied photo below, or use Take photos. In the picker, Choose Files reads from the Files app and skips the photo picker.'); } }, 3500); }, true);
   var queueMark = 0; function queueGrew() { return queue.length > queueMark; }
   function onFiles(e) {
     var list = []; try { list = Array.prototype.slice.call(e.target.files || []); if (list.length) { plog('files ' + list.length + ' via ' + (e.type || 'poll') + ', first ' + (list[0].type || 'no type') + ' ' + list[0].size + ' bytes'); showWarn(''); } addBlobs(list); } catch (err) { noteErr(err.message || err); }
