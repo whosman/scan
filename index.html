@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<title>HW Scan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root { --bg:#f6f7f5; --card:#ffffff; --ink:#1b1f1d; --muted:#5b625e; --accent:#1f6f5c; --accent-ink:#ffffff; --warn:#8a4b00; --warn-bg:#fff3e0; --line:#d9ddd9; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --bg:#121513; --card:#1b201d; --ink:#e9ece9; --muted:#a3aaa5; --accent:#4fb79c; --accent-ink:#06130f; --warn:#ffcf8a; --warn-bg:#3a2a12; --line:#2d3430; color-scheme: dark; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0); }
+header { position: sticky; top: 0; z-index: 5; background: var(--accent); color: var(--accent-ink); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+header h1 { margin: 0; font-size: 20px; }
+#status { font-size: 13px; opacity: .9; }
+main { max-width: 720px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+input[type=text], select { width: 100%; font-size: 16px; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 14px; font-size: 16px; font-weight: 600; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .5; }
+input[type=file] { display: none; }
+.page { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--line); padding: 10px 0; }
+.page:first-child { border-top: 0; }
+.thumb { width: 96px; flex: none; border: 1px solid var(--line); background: #fff; border-radius: 6px; }
+.meta { flex: 1; min-width: 0; }
+.meta .n { font-weight: 700; }
+.warn { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 4px 8px; margin: 4px 0; font-size: 14px; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tools button { min-height: 40px; padding: 0 10px; font-size: 15px; }
+.busy { color: var(--muted); font-size: 14px; }
+.hint { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+#empty { color: var(--muted); text-align: center; padding: 18px 0; }
+</style>
+</head>
+<body>
+<header><h1>HW Scan</h1><span id="status">Loading…</span></header>
+<main>
+  <section class="card">
+    <label for="name">File name</label>
+    <input id="name" type="text" autocomplete="off" placeholder="COURSE-HW01-Last-First">
+    <div class="row" style="margin-top:10px">
+      <div><label for="paper">Paper</label><select id="paper"><option value="letter">Letter</option><option value="a4">A4</option></select></div>
+      <div><label for="quality">Quality</label><select id="quality"><option value="200">Standard (small file)</option><option value="300">High</option></select></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <label class="btn primary" for="cam">📷 Take photo</label>
+      <label class="btn" for="gal">🖼️ Add from gallery</label>
+    </div>
+    <input id="cam" type="file" accept="image/*" capture="environment">
+    <input id="gal" type="file" accept="image/*" multiple>
+    <p class="hint">Put one page flat on a table. Fill the screen with the page. Hold still. Daylight or a lamp from the side works best.</p>
+  </section>
+
+  <section class="card">
+    <div id="pages"><div id="empty">No pages yet.</div></div>
+  </section>
+
+  <section class="card">
+    <button id="make" class="primary" style="width:100%" disabled>Make PDF</button>
+    <p class="hint" id="pdfinfo"></p>
+  </section>
+</main>
+
+<script src="pdf.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
