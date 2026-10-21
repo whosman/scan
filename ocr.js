@@ -14,11 +14,19 @@
     workerLang = l; return worker;
   }
   // canvas -> [{ t, x, y, w, h }] in canvas pixels
+  // The reader needs far fewer pixels than the PDF keeps: a page 1200 px wide reads nearly as well as one 2550 px wide, in a quarter of the time.
+  // A page that takes more than 30 s is skipped (it keeps its picture, just no hidden text) so one hard page cannot hold up the PDF.
+  const READ_WIDTH = 1200, LIMIT_MS = 30000;
   async function read(canvas, lang) {
-    const w = await get(lang), r = await w.recognize(canvas, {}, { blocks: true }), out = [];
+    const s = Math.min(1, READ_WIDTH / canvas.width); let src = canvas;
+    if (s < 1) { src = document.createElement('canvas'); src.width = Math.round(canvas.width * s); src.height = Math.round(canvas.height * s); const g = src.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(canvas, 0, 0, src.width, src.height); }
+    const w = await get(lang); let timer;
+    const r = await Promise.race([w.recognize(src, {}, { blocks: true }), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('slow')), LIMIT_MS); })]).catch(async (e) => { await stop(); throw e; });
+    clearTimeout(timer); if (src !== canvas) src.width = 0;
+    const out = [];
     for (const b of (r.data.blocks || [])) for (const p of b.paragraphs || []) for (const l of p.lines || []) for (const x of l.words || []) {
       const t = (x.text || '').trim(); if (!t || x.confidence < 40) continue;
-      out.push({ t, x: x.bbox.x0, y: x.bbox.y0, w: x.bbox.x1 - x.bbox.x0, h: x.bbox.y1 - x.bbox.y0 });
+      out.push({ t, x: x.bbox.x0 / s, y: x.bbox.y0 / s, w: (x.bbox.x1 - x.bbox.x0) / s, h: (x.bbox.y1 - x.bbox.y0) / s });
     }
     return out;
   }

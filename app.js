@@ -364,17 +364,18 @@
   }
   // One pass over every page at a size cap. A phone that runs out of memory at full size gets a second try at a smaller size.
   async function buildPdf(cap, good, ocr) {
-    const out = []; let ocrFailed = false;
+    const out = [], t0 = Date.now(); let ocrFailed = false, ocrSkipped = false;
     for (let i = 0; i < good.length; i++) {
       const f = await fitCanvas(good[i], cap), item = { jpeg: await bytesOf(f.c), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
-      if (ocr) {
+      if (ocr && Date.now() - t0 > 90000) ocrSkipped = true; // the text reader gets about a minute and a half in all; the pictures are what matter
+      else if (ocr) {
         $('status').textContent = T('reading', { n: i + 1, total: good.length });
-        try { item.words = await HWOCR.read(f.c, I18N.lang); } catch (e) { ocrFailed = true; /* no text layer; the page itself is fine */ }
+        try { item.words = await HWOCR.read(f.c, I18N.lang); } catch (e) { if (e && e.message === 'slow') ocrSkipped = true; else ocrFailed = true; /* no text layer; the page itself is fine */ }
       }
       out.push(item); f.c.width = 0;
     }
     const name = fileName();
-    return { bytes: PDFMini.makePDF(out, name, { lang: I18N.lang }), name, count: out.length, ocrFailed };
+    return { bytes: PDFMini.makePDF(out, name, { lang: I18N.lang }), name, count: out.length, ocrFailed, ocrSkipped };
   }
   $('make').addEventListener('click', async () => {
     $('make').disabled = true; $('result').hidden = true; setStatus('making');
@@ -384,7 +385,7 @@
     if (!res) { setStatus('pdfFail'); return; } // keep the message on the screen
     setStatus('ready');
     lastPdf = { file: new File([res.bytes], res.name + '.pdf', { type: 'application/pdf' }), pages: res.count };
-    $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(res.count), mb: (res.bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name }) + (res.ocrFailed ? ' ' + T('searchFail') : '');
+    $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(res.count), mb: (res.bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name }) + (res.ocrFailed ? ' ' + T('searchFail') : res.ocrSkipped ? ' ' + T('searchSlow') : '');
     $('result').hidden = false; $('share').hidden = !canShareFiles([lastPdf.file]);
     $('result').scrollIntoView && $('result').scrollIntoView();
     await deliver(lastPdf.file);
