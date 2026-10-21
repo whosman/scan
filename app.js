@@ -366,6 +366,7 @@
   async function buildPdf(cap, good, ocr) {
     const out = [], t0 = Date.now(); let ocrFailed = false, ocrSkipped = false;
     for (let i = 0; i < good.length; i++) {
+      if (good.length > 1 && !(ocr && Date.now() - t0 <= 90000)) $('status').textContent = T('makingPage', { n: i + 1, total: good.length });
       const f = await fitCanvas(good[i], cap), item = { jpeg: await bytesOf(f.c), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
       if (ocr && Date.now() - t0 > 90000) ocrSkipped = true; // the text reader gets about a minute and a half in all; the pictures are what matter
       else if (ocr) {
@@ -379,10 +380,10 @@
   }
   $('make').addEventListener('click', async () => {
     $('make').disabled = true; $('result').hidden = true; setStatus('making');
-    const good = pages.filter((p) => !p.error), ocr = setting('searchable') && window.HWOCR; let res = null;
-    for (const cap of [400, 220, 150]) { try { res = await buildPdf(cap, good, ocr); break; } catch (err) { /* try a smaller size */ } }
+    const good = pages.filter((p) => !p.error), ocr = setting('searchable') && window.HWOCR; let res = null, why = '';
+    for (const cap of [400, 220, 150]) { try { res = await buildPdf(cap, good, ocr); break; } catch (err) { why = String((err && err.message) || err); /* try a smaller size */ } }
     $('make').disabled = false;
-    if (!res) { setStatus('pdfFail'); return; } // keep the message on the screen
+    if (!res) { setStatus('pdfFail'); $('status').textContent += ' (' + why.slice(0, 120) + ')'; return; } // the reason is shown so a problem on one phone can be reported exactly // keep the message on the screen
     setStatus('ready');
     lastPdf = { file: new File([res.bytes], res.name + '.pdf', { type: 'application/pdf' }), pages: res.count };
     $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(res.count), mb: (res.bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name }) + (res.ocrFailed ? ' ' + T('searchFail') : res.ocrSkipped ? ' ' + T('searchSlow') : '');

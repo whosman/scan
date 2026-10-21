@@ -8,6 +8,7 @@
     loading: 'Getting ready. This takes a moment the first time.',
     cleaning: 'Cleaning your photos…',
     making: 'Making your PDF…',
+    makingPage: 'Making page {n} of {total}…',
     reading: 'Reading page {n} of {total}…',
     crashed: 'Something went wrong. Please reload the page.',
     pdfFail: 'The PDF could not be made. Choose Small file in Settings, or try fewer pages.',
