@@ -18,12 +18,23 @@ const WARN = [
   [32, 'We could not tell which way is up. Please check this page.'],
 ];
 
+let usingJs = false;
+// The engine runs as WebAssembly. A phone that has none (older iOS, iOS Lockdown Mode, some school browsers) runs the same engine as plain JavaScript: about 20 times slower, but it works.
+async function loadEngine() {
+  if (typeof WebAssembly === 'object' && WebAssembly.instantiate && !/nowasm/.test(self.location.search)) {
+    try {
+      const url = WebAssembly.validate(SIMD_PROBE) ? 'engine-simd.wasm' : 'engine.wasm';
+      const bytes = await (await fetch(url)).arrayBuffer();
+      return (await WebAssembly.instantiate(bytes, {})).instance.exports;
+    } catch (e) { /* blocked or failed: fall through to the JavaScript build */ }
+  }
+  importScripts('engine-js.js');
+  usingJs = true;
+  return self.HWENGINE;
+}
+
 const ready = (async () => {
-  const url = WebAssembly.validate(SIMD_PROBE) ? 'engine-simd.wasm' : 'engine.wasm';
-  const res = await fetch(url);
-  const bytes = await res.arrayBuffer();
-  const { instance } = await WebAssembly.instantiate(bytes, {});
-  X = instance.exports;
+  X = await loadEngine();
   // orientation model
   const meta = await (await fetch('updown.json')).json();
   const raw = await (await fetch('updown.bin')).arrayBuffer();
@@ -31,7 +42,7 @@ const ready = (async () => {
   new Uint8Array(X.memory.buffer, p, raw.byteLength).set(new Uint8Array(raw));
   X.hw_set_model(p, raw.byteLength / 4, meta.mu[0], meta.sd[0], meta.W1[0], meta.b1[0], meta.W2[0], meta.b2[0], meta.b1[1]);
   X.hw_free(p, raw.byteLength);
-  self.postMessage({ type: 'ready', canOffscreen: CAN_OFFSCREEN });
+  self.postMessage({ type: 'ready', canOffscreen: CAN_OFFSCREEN, slow: usingJs });
 })();
 
 const PAPERS = { letter: [11 / 8.5, 11], a4: [11.69 / 8.27, 11.69] };

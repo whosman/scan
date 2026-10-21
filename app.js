@@ -1,6 +1,7 @@
 /* app.js - UI for HW Scan. All processing stays on the phone. MIT licence. */
 (function () {
   'use strict';
+  window.HWSTARTED = true;
   const T = (k, v) => I18N.t(k, v);
   const $ = (id) => document.getElementById(id);
   // Cap the photo size: old phones have little memory. Phones that report 2 GB or less, or only two cores, get a smaller cap.
@@ -23,7 +24,7 @@
     set(k, v) { try { localStorage.setItem('hwscan.' + k, v); } catch (e) { /* private mode */ } },
   };
   const BOX = { advanced: 'checkbox', autorotate: 'checkbox', searchable: 'checkbox' };
-  const DEFAULTS = { name: '', paper: 'letter', quality: '200', look: 'color', bleed: 'normal', autorotate: '1', searchable: '', advanced: '' };
+  const DEFAULTS = { name: '', paper: 'letter', quality: '200', look: 'gray', bleed: 'normal', autorotate: '1', searchable: '', advanced: '' };
   function loadSettings() {
     for (const k of Object.keys(DEFAULTS)) {
       const v = store.get(k, DEFAULTS[k]);
@@ -42,7 +43,7 @@
   }
 
   // ---------- small helpers ----------
-  function setStatus(key) { statusKey = key; $('status').textContent = T(key); }
+  function setStatus(key) { statusKey = key; if (slowMode && (key === 'ready' || key === 'cleaning')) key += 'Slow'; $('status').textContent = T(key); }
   function toBlob(canvas, type, q) { return new Promise((res) => canvas.toBlob(res, type || 'image/jpeg', q)); }
   function canvasOf(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text) x.textContent = text; return x; }
@@ -52,12 +53,12 @@
   // One worker a core (at most three, one fewer than the cores so the page stays responsive). Pages are cleaned side by side.
   const LANES = LOW_MEMORY ? 1 : Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
   const lanes = [], idle = [], jobs = [];
-  let running = 0, canOffscreen = false;
+  let running = 0, canOffscreen = false, slowMode = false; // slowMode: the phone has no WebAssembly, so the engine runs as plain JavaScript
   function startLane(i) {
-    const w = new Worker('worker.js' + (/nooffscreen/.test(location.search) ? '?nooffscreen' : '')); // ?nooffscreen: test the path for browsers that cannot decode in a worker
+    const w = new Worker('worker.js' + (/nooffscreen/.test(location.search) ? '?nooffscreen' : /nowasm/.test(location.search) ? '?nowasm' : '')); // ?nooffscreen: test the path for browsers that cannot decode in a worker
     w.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'ready') { canOffscreen = !!m.canOffscreen; if (readyLanes.add(i).size === LANES) engineIsReady(); return; }
+      if (m.type === 'ready') { canOffscreen = !!m.canOffscreen; if (m.slow && !slowMode) { slowMode = true; maxSide = Math.min(maxSide, 1000); } if (readyLanes.add(i).size === LANES) engineIsReady(); return; }
       const p = pending.get(m.id); if (!p) return;
       if (m.type === 'decoded') { if (p.onDecoded) p.onDecoded(m); return; }
       pending.delete(m.id); clearTimeout(p.timer); p.res(m);
@@ -74,7 +75,7 @@
   function submit(msg, transfer, lane, onDecoded) {
     return new Promise((res) => {
       const p = { res, onDecoded, lane }; pending.set(msg.id, p);
-      p.timer = setTimeout(() => { if (pending.has(msg.id)) { pending.delete(msg.id); res({ ok: false, error: 'timeout' }); restartLane(lane); } }, 120000);
+      p.timer = setTimeout(() => { if (pending.has(msg.id)) { pending.delete(msg.id); res({ ok: false, error: 'timeout' }); restartLane(lane); } }, slowMode ? 900000 : 120000);
       lanes[lane].postMessage(msg, transfer);
     });
   }
@@ -278,20 +279,39 @@
     g.drawImage(crop.bmp, 0, 0, c.width, c.height);
     g.lineWidth = 3; g.strokeStyle = '#fff'; g.beginPath(); P.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.stroke();
     g.lineWidth = 1.5; g.strokeStyle = '#000'; g.stroke();
-    for (const p of P) { g.beginPath(); g.arc(p[0], p[1], 14, 0, 7); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#000'; g.stroke(); }
+    P.forEach((p, i) => { g.beginPath(); g.arc(p[0], p[1], i === crop.drag ? 9 : 14, 0, 7); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#000'; g.stroke(); });
+    drawLoupe();
+  }
+  // A close-up of the corner being moved, shown on the side away from the finger, so the exact spot can be seen.
+  function drawLoupe() {
+    const L = $('loupe'); L.hidden = crop.drag < 0; if (L.hidden) return;
+    const c = $('cropc'), g = L.getContext('2d'), P = crop.pts, p = P[crop.drag], reg = 34, k = L.width / reg, bw = crop.bmp.width, bh = crop.bmp.height;
+    g.fillStyle = '#fff'; g.fillRect(0, 0, L.width, L.height);
+    // the part of the photo around the corner, cut to the photo's edges (some browsers refuse a source box that sticks out)
+    let sx = (p[0] - reg / 2) / crop.s, sy = (p[1] - reg / 2) / crop.s; const sw = reg / crop.s, sh = reg / crop.s;
+    const x0 = Math.max(0, sx), y0 = Math.max(0, sy), x1 = Math.min(bw, sx + sw), y1 = Math.min(bh, sy + sh);
+    if (x1 > x0 && y1 > y0) g.drawImage(crop.bmp, x0, y0, x1 - x0, y1 - y0, (x0 - sx) / sw * L.width, (y0 - sy) / sh * L.height, (x1 - x0) / sw * L.width, (y1 - y0) / sh * L.height);
+    const at = (q) => [(q[0] - p[0]) * k + L.width / 2, (q[1] - p[1]) * k + L.height / 2];
+    g.beginPath(); P.forEach((q, i) => { const a = at(q); if (i) g.lineTo(a[0], a[1]); else g.moveTo(a[0], a[1]); }); g.closePath();
+    g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.lineWidth = 1.5; g.strokeStyle = '#000'; g.stroke();
+    g.beginPath(); g.arc(L.width / 2, L.height / 2, 7, 0, 7); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.lineWidth = 1.5; g.strokeStyle = '#000'; g.stroke();
+    // put the close-up in a top corner, on the side away from the corner being moved
+    const left = p[0] / c.width > 0.5;
+    L.style.left = left ? '8px' : 'auto'; L.style.right = left ? 'auto' : '8px';
   }
   function cropPos(p) { const r = $('cropc').getBoundingClientRect(), c = $('cropc'); return [(p.clientX - r.left) * c.width / r.width, (p.clientY - r.top) * c.height / r.height]; }
+  // Touching anywhere picks the nearest corner, and the corner then moves by the same amount as the finger. The finger never has to cover the corner.
   function dragStart(p, e) { // p: anything with clientX and clientY
-    const [x, y] = cropPos(p), k = $('cropc').width / $('cropc').getBoundingClientRect().width; let best = -1, bd = 36 * k;
+    const [x, y] = cropPos(p); let best = 0, bd = Infinity;
     crop.pts.forEach((q, i) => { const d = Math.hypot(q[0] - x, q[1] - y); if (d < bd) { bd = d; best = i; } });
-    crop.drag = best; if (best >= 0) e.preventDefault();
-    return best >= 0;
+    crop.drag = best; crop.from = [x, y]; crop.start = crop.pts[best].slice(); e.preventDefault(); drawCrop();
+    return true;
   }
   function dragMove(p, e) {
     if (!crop || crop.drag < 0) return; const [x, y] = cropPos(p), c = $('cropc');
-    crop.pts[crop.drag] = [Math.max(0, Math.min(c.width - 1, x)), Math.max(0, Math.min(c.height - 1, y))]; drawCrop(); e.preventDefault();
+    crop.pts[crop.drag] = [Math.max(0, Math.min(c.width - 1, crop.start[0] + x - crop.from[0])), Math.max(0, Math.min(c.height - 1, crop.start[1] + y - crop.from[1]))]; drawCrop(); e.preventDefault();
   }
-  const endDrag = () => { if (crop) crop.drag = -1; };
+  const endDrag = () => { if (crop) { crop.drag = -1; drawCrop(); } };
   const cc = $('cropc');
   if (window.PointerEvent) {
     cc.addEventListener('pointerdown', (e) => { if (dragStart(e, e)) { try { cc.setPointerCapture(e.pointerId); } catch (err) { /* nothing to capture */ } } });
@@ -394,7 +414,7 @@
   loadSettings(); $('advopts').hidden = !$('advanced').checked;
   applyLang();
   for (let i = 0; i < LANES; i++) { startLane(i); idle.push(i); } // each worker loads the engine and says "ready"
-  setTimeout(() => { if (!engineReady) setStatus('stuck'); }, 45000);
+  setTimeout(() => { if (!engineReady) setStatus('stuck'); }, 90000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   HWDB.loadAll().then((saved) => {
     if (!saved.length || pages.length) return;

@@ -42,6 +42,7 @@ The work is done by the engine (`../engine/`), a small WebAssembly module writte
 | `db.js` | Saves pages on the phone (IndexedDB) |
 | `worker.js` | Runs the engine in a background thread; decodes photos there when the browser can |
 | `engine-simd.wasm`, `engine.wasm` | The engine (about 250 KB each; the SIMD one is used when the browser has it) |
+| `engine-js.js` | The same engine as plain JavaScript (1.7 MB), for phones with no WebAssembly. About 20 times slower. Fetched only on those phones |
 | `updown.bin`, `updown.json` | Orientation model weights (0.9 MB) |
 | `pdf.js` | PDF writer |
 | `ocr.js`, `ocr/` | Optional text reader (Tesseract.js, Apache-2.0). Fetched only if the student turns on searchable text |
@@ -58,7 +59,7 @@ Free hosts that work: GitHub Pages, Cloudflare Pages, Netlify, a school web serv
 2. Open the address on a phone. Wait until the page says "Ready. Works without internet."
 3. Turn on airplane mode and reload the page to test offline use.
 
-When you change a file, change `CACHE = 'hwscan-v7'` in `sw.js` to a new name.
+When you change a file, change `CACHE = 'hwscan-v10'` in `sw.js` to a new name.
 Phones then get the new files the next time they are online.
 
 ## Size and speed

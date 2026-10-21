@@ -57,6 +57,9 @@ details > div { padding-top: 12px; }
 .row2 { display: flex; justify-content: space-between; color: #444; font-size: 15px; }
 #prev, #cropc { display: block; max-width: 100%; height: auto; margin: 0 auto 12px; border: 1px solid #000; background: #fff; }
 #cropc { touch-action: none; }
+#cropwrap { position: relative; width: -moz-fit-content; width: fit-content; max-width: 100%; margin: 0 auto; }
+#cropwrap #cropc { margin-bottom: 12px; }
+#loupe { position: absolute; top: 8px; left: 8px; width: 132px; height: 132px; border: 3px solid #000; background: #fff; pointer-events: none; }
 pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background: #fff; border: 1px solid #000; padding: 8px; }
 #oldphone { display: none; padding: 16px; border: 2px solid #000; margin: 24px 0; }
 .nofull main { display: none; }
@@ -65,16 +68,27 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
 </head>
 <body>
 <div id="oldphone">
-  <p><strong>This phone cannot run HW Scan.</strong> Please try a newer browser, such as Chrome or Firefox.</p>
+  <p><strong>HW Scan cannot start in this browser.</strong></p>
+  <p>Try Chrome or Firefox. If you already use one, update it, or try another phone.</p>
+  <p id="why" style="font-size:14px;color:#444"></p>
 </div>
 <script>
-/* ES5 on purpose: it must run on any phone. Without WebAssembly or workers the full app cannot start, so say so plainly. */
+/* ES5 on purpose: it must run on any phone. It says plainly what is missing, and what went wrong if the app itself fails to start. */
 (function () {
-  var no = typeof WebAssembly === 'undefined' || !window.Worker || !window.Promise;
-  if (no) { document.getElementById('oldphone').style.display = 'block'; document.documentElement.className += ' nofull'; }
+  var miss = [];
+  if (!window.Worker) miss.push('web workers');
+  if (!window.Promise) miss.push('promises');
+  if (!window.Uint8Array || !window.Float32Array) miss.push('typed arrays');
+  function stop(why) {
+    document.getElementById('oldphone').style.display = 'block';
+    document.getElementById('why').appendChild(document.createTextNode(why));
+    document.documentElement.className += ' nofull';
+  }
+  if (miss.length) stop('This browser lacks: ' + miss.join(', ') + '.');
+  window.onerror = function (msg) { if (!window.HWSTARTED && !miss.length) stop('Problem: ' + msg); };
+  setTimeout(function () { if (!window.HWSTARTED && !miss.length) stop('The app did not start.'); }, 12000);
 })();
 </script>
-
 <main id="home">
   <h1>HW Scan</h1>
   <p class="lead" data-i="tagline">Photograph your homework. Get one clean PDF.</p>
@@ -116,8 +130,8 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
       <div id="advopts" hidden>
         <label for="look" data-i="defaultLook">Usual look</label>
         <select id="look"><option value="color" data-i="colour">Color</option><option value="gray" data-i="gray">Gray</option><option value="bw" data-i="bw">Black and white</option></select>
-        <label for="bleed" data-i="backBleed">Show-through from the back of the sheet</label>
-        <select id="bleed"><option value="low" data-i="gentle">Keep it</option><option value="normal" data-i="normal">Normal</option><option value="high" data-i="strong">Remove it</option></select>
+        <label for="bleed" data-i="backBleed">When the other side of the page shows through</label>
+        <select id="bleed"><option value="low" data-i="gentle">Leave it</option><option value="normal" data-i="normal">Hide a little</option><option value="high" data-i="strong">Hide it</option></select>
         <label class="check"><input id="autorotate" type="checkbox" checked><span data-i="autorotate">Turn pages upright by themselves</span></label>
         <label class="check"><input id="searchable" type="checkbox"><span data-i="searchable">Make the text searchable</span></label>
         <p class="quiet" data-i="searchableHelp">Lets you search the PDF and hear it read aloud. Slower. Downloads about 5 MB the first time.</p>
@@ -154,8 +168,8 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
 
 <main id="cropper" hidden>
   <h1 data-i="edges">Adjust the edges</h1>
-  <p data-i="cropHelp">Drag each dot to a corner of the page.</p>
-  <canvas id="cropc"></canvas>
+  <p data-i="cropHelp">Drag the nearest dot to a corner of the page. The close-up shows the exact spot.</p>
+  <div id="cropwrap"><canvas id="cropc"></canvas><canvas id="loupe" width="132" height="132" hidden></canvas></div>
   <button id="cropok" type="button" class="primary" data-i="cropApply">Use these edges</button>
   <button id="cropauto" type="button" data-i="autoEdges">Find the edges again</button>
   <button id="cropcancel" type="button" data-i="cancel">Cancel</button>
