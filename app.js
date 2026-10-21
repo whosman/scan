@@ -339,42 +339,56 @@
   // ---------- PDF ----------
   const PAPER = { letter: [8.5, 11.0], a4: [8.27, 11.69] };
   function fileName() { return ($('name').value.trim() || 'Homework').replace(/[\\/:*?"<>|]+/g, '_').replace(/\.pdf$/i, ''); }
-  async function fitCanvas(pg) { // the page on its sheet of paper, at the resolution the student chose (never more than the photo gave)
+  async function fitCanvas(pg, cap) { // the page on its sheet of paper, at the resolution the student chose (never more than the photo gave, or `cap`)
     const pic = await drawPage(pg, 0), paper = setting('paper'), native = pg.dpi || +setting('quality');
-    const dpi = Math.min(+setting('quality'), native), s0 = dpi / native, sw = Math.round(pic.width * s0), sh = Math.round(pic.height * s0);
+    const dpi = Math.min(+setting('quality'), native, cap), s0 = dpi / native, sw = Math.round(pic.width * s0), sh = Math.round(pic.height * s0);
+    let c, ptW, ptH;
     if (paper === 'fit') {
-      let c = pic; if (s0 < 1) { c = canvasOf(sw, sh); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(pic, 0, 0, sw, sh); }
-      return { c, ptW: Math.round(c.width / dpi * 72), ptH: Math.round(c.height / dpi * 72) };
+      c = pic; if (s0 < 1) { c = canvasOf(sw, sh); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(pic, 0, 0, sw, sh); }
+      ptW = Math.round(c.width / dpi * 72); ptH = Math.round(c.height / dpi * 72);
+    } else {
+      const [wi, hi] = PAPER[paper], Wp = Math.round(wi * dpi), Hp = Math.round(hi * dpi);
+      // the page is already cut to the shape of the paper, so it fills the sheet; shrinking it onto the sheet would blur the writing
+      const s = Math.min(1, Wp / sw, Hp / sh), w = Math.round(sw * s), h = Math.round(sh * s);
+      c = canvasOf(Wp, Hp); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, Wp, Hp); g.imageSmoothingQuality = 'high';
+      g.drawImage(pic, Math.round((Wp - w) / 2), Math.round((Hp - h) / 2), w, h);
+      ptW = Math.round(wi * 72); ptH = Math.round(hi * 72);
     }
-    const [wi, hi] = PAPER[paper], Wp = Math.round(wi * dpi), Hp = Math.round(hi * dpi);
-    // the page is already cut to the shape of the paper, so it fills the sheet; shrinking it onto the sheet would blur the writing
-    const s = Math.min(1, Wp / sw, Hp / sh), w = Math.round(sw * s), h = Math.round(sh * s);
-    const c = canvasOf(Wp, Hp), g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, Wp, Hp); g.imageSmoothingQuality = 'high';
-    g.drawImage(pic, Math.round((Wp - w) / 2), Math.round((Hp - h) / 2), w, h);
-    return { c, ptW: Math.round(wi * 72), ptH: Math.round(hi * 72) };
+    if (pic !== c) pic.width = 0; // give the memory back at once: a phone holds only a few big canvases
+    return { c, ptW, ptH };
   }
-  async function bytesOf(canvas) { return new Uint8Array(await (await toBlob(canvas, 'image/jpeg', +setting('quality') <= 150 ? 0.85 : 0.93)).arrayBuffer()); }
+  async function bytesOf(canvas) {
+    const blob = await toBlob(canvas, 'image/jpeg', +setting('quality') <= 150 ? 0.85 : 0.93);
+    if (!blob) throw new Error('the phone could not make the picture'); // too big for this phone's memory
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  // One pass over every page at a size cap. A phone that runs out of memory at full size gets a second try at a smaller size.
+  async function buildPdf(cap, good, ocr) {
+    const out = []; let ocrFailed = false;
+    for (let i = 0; i < good.length; i++) {
+      const f = await fitCanvas(good[i], cap), item = { jpeg: await bytesOf(f.c), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
+      if (ocr) {
+        $('status').textContent = T('reading', { n: i + 1, total: good.length });
+        try { item.words = await HWOCR.read(f.c, I18N.lang); } catch (e) { ocrFailed = true; /* no text layer; the page itself is fine */ }
+      }
+      out.push(item); f.c.width = 0;
+    }
+    const name = fileName();
+    return { bytes: PDFMini.makePDF(out, name, { lang: I18N.lang }), name, count: out.length, ocrFailed };
+  }
   $('make').addEventListener('click', async () => {
     $('make').disabled = true; $('result').hidden = true; setStatus('making');
-    const good = pages.filter((p) => !p.error), out = [], ocr = setting('searchable') && window.HWOCR; let ocrFailed = false;
-    try {
-      for (let i = 0; i < good.length; i++) {
-        const pg = good[i], f = await fitCanvas(pg), item = { jpeg: await bytesOf(f.c), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
-        if (ocr) {
-          $('status').textContent = T('reading', { n: i + 1, total: good.length });
-          try { item.words = await HWOCR.read(f.c, I18N.lang); } catch (e) { ocrFailed = true; /* no text layer; the page itself is fine */ }
-        }
-        out.push(item); f.c.width = 0;
-      }
-      const name = fileName(), bytes = PDFMini.makePDF(out, name, { lang: I18N.lang });
-      lastPdf = { file: new File([bytes], name + '.pdf', { type: 'application/pdf' }), pages: out.length };
-      $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(out.length), mb: (bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name }) + (ocrFailed ? ' ' + T('searchFail') : '');
-      $('result').hidden = false; $('share').hidden = !canShareFiles([lastPdf.file]);
-      await deliver(lastPdf.file);
-    } catch (err) { setStatus('crashed'); }
-    $('make').disabled = false; setStatus('ready');
-  });
-  const canShareFiles = (files) => !!(navigator.canShare && navigator.canShare({ files }));
+    const good = pages.filter((p) => !p.error), ocr = setting('searchable') && window.HWOCR; let res = null;
+    for (const cap of [400, 220, 150]) { try { res = await buildPdf(cap, good, ocr); break; } catch (err) { /* try a smaller size */ } }
+    $('make').disabled = false;
+    if (!res) { setStatus('pdfFail'); return; } // keep the message on the screen
+    setStatus('ready');
+    lastPdf = { file: new File([res.bytes], res.name + '.pdf', { type: 'application/pdf' }), pages: res.count };
+    $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(res.count), mb: (res.bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name }) + (res.ocrFailed ? ' ' + T('searchFail') : '');
+    $('result').hidden = false; $('share').hidden = !canShareFiles([lastPdf.file]);
+    $('result').scrollIntoView && $('result').scrollIntoView();
+    await deliver(lastPdf.file);
+  });  const canShareFiles = (files) => !!(navigator.canShare && navigator.canShare({ files }));
   function download(file) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);

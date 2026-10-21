@@ -10,6 +10,7 @@
     making: 'Making your PDF…',
     reading: 'Reading page {n} of {total}…',
     crashed: 'Something went wrong. Please reload the page.',
+    pdfFail: 'The PDF could not be made. Choose Small file in Settings, or try fewer pages.',
     noscript: 'This app needs JavaScript. Please turn it on and reload.',
     stuck: 'This is taking too long. Reload the page. If it still fails, try a newer browser, such as Chrome or Firefox.',
 
