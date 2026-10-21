@@ -39048,7 +39048,7 @@ function asmFunc(imports) {
                                      $3_1 = 0;
                                      while (1) {
                                       $6 = Math_fround(0.0);
-                                      $12 = Math_fround(Math_fround(Math_fround(Math_fround($3_1 >>> 0) * Math_fround(.000244140625)) + Math_fround(-.11999999731779099)) / Math_fround(.5799999833106995));
+                                      $12 = Math_fround(Math_fround(Math_fround(Math_fround($3_1 >>> 0) * Math_fround(.000244140625)) + Math_fround(-.18000000715255737)) / Math_fround(.5999999642372131));
                                       block196 : {
                                        if ($12 < Math_fround(0.0)) {
                                         break block196

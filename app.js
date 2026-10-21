@@ -97,7 +97,7 @@
   function newPage() {
     return { id: nextId++, src: null, sw: 0, sh: 0, quad: null, w: 0, h: 0, blob: null, info: null, rot: 0, look: setting('look'), light: 0, busy: true, error: false, ver: 0 };
   }
-  const MARGIN = 14; // how far below the paper's white a mark must be to count as ink; ink from the back of the sheet is weaker than the writing, and the engine's ink ramp turns it white
+  const MARGIN = 8; // how far below the paper's white a mark must be to count as ink; ink from the back of the sheet is weaker than the writing, and the engine's ink ramp turns it white
   async function decodeMain(file) { // for browsers that cannot decode in a worker. EXIF rotation is applied by the browser.
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
