@@ -97,7 +97,7 @@
   function newPage() {
     return { id: nextId++, src: null, sw: 0, sh: 0, quad: null, w: 0, h: 0, blob: null, info: null, rot: 0, look: setting('look'), light: 0, busy: true, error: false, ver: 0 };
   }
-  const MARGIN = 24; // how far below the paper's white a mark must be to count as ink: faint ink from the back of the sheet stays out
+  const MARGIN = 14; // how far below the paper's white a mark must be to count as ink; ink from the back of the sheet is weaker than the writing, and the engine's ink ramp turns it white
   async function decodeMain(file) { // for browsers that cannot decode in a worker. EXIF rotation is applied by the browser.
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
@@ -112,7 +112,7 @@
   // photo -> clean colour page; sets pg.blob, pg.src, pg.info, pg.quad. `file` is the photo (a File, or the saved copy when re-cleaning)
   async function clean(pg, file, quad, lane) {
     // always clean at the most the photo can give; the quality setting is applied when the PDF is made
-    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: Math.round(maxSide / 11), margin: MARGIN, autorotate: setting('autorotate'), quad: quad || null };
+    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: slowMode ? 150 : LOW_MEMORY ? 200 : 300, margin: MARGIN, autorotate: setting('autorotate'), quad: quad || null };
     let r;
     if (canOffscreen) {
       r = await submit({ kind: 'file', id: pg.id, file, maxSide, opts }, undefined, lane, (m) => { pg.sw = m.w; pg.sh = m.h; pg.raw = thumbOfBitmap(m.thumb); render(); }); // the photo shows at once
