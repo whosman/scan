@@ -98,7 +98,7 @@ self.onmessage = async (e) => {
       const img = d.g.getImageData(0, 0, d.w, d.h);
       const r = run(img.data, d.w, d.h, m.opts);
       const out = new OffscreenCanvas(r.w, r.h); out.getContext('2d').putImageData(new ImageData(r.pixels, r.w, r.h), 0, 0);
-      const [blob, srcBlob] = await Promise.all([out.convertToBlob({ type: 'image/jpeg', quality: 0.92 }), d.oc.convertToBlob({ type: 'image/jpeg', quality: 0.9 })]);
+      const [blob, srcBlob] = await Promise.all([out.convertToBlob({ type: 'image/jpeg', quality: 0.95 }), d.oc.convertToBlob({ type: 'image/jpeg', quality: 0.92 })]);
       self.postMessage({ type: 'done', id: m.id, ok: true, width: r.w, height: r.h, blob, srcBlob, sw: d.w, sh: d.h, info: r.info });
     } else {
       const r = run(new Uint8ClampedArray(m.rgba), m.width, m.height, m.opts);

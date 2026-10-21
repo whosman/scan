@@ -25,7 +25,8 @@ h2.step:before { counter-increment: step; content: counter(step) ". "; }
 main { counter-reset: step; }
 h3 { font-size: 17px; margin: 0 0 4px; }
 p { margin: 0 0 12px; }
-.lead { font-size: 19px; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; } /* for screen readers only */
+#status:empty { display: none; }
 .quiet { color: #444; font-size: 15px; }
 #status { color: #444; font-size: 15px; margin: 0 0 20px; }
 button, .btn { display: block; width: 100%; min-height: 52px; padding: 12px 16px; margin: 0 0 12px; font: inherit; font-weight: 700; text-align: center; text-decoration: none; color: #000; background: #fff; border: 2px solid #000; border-radius: 6px; cursor: pointer; -webkit-appearance: none; appearance: none; }
@@ -90,23 +91,22 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
 })();
 </script>
 <main id="home">
-  <h1>HW Scan</h1>
-  <p class="lead" data-i="tagline">Photograph your homework. Get one clean PDF.</p>
+  <h1 class="sr">HW Scan</h1>
   <p id="status" role="status" aria-live="polite">Getting ready. This takes a moment the first time.</p>
   <noscript><p>This app needs JavaScript. Please turn it on and reload.</p></noscript>
 
-  <h2 class="step" data-i="add">Add your pages</h2>
+  <h2 class="sr" data-i="add">Add your pages</h2>
   <label class="btn primary" for="cam" tabindex="0" role="button" id="camlabel" data-i="take">Take a photo</label>
   <label class="btn" for="gal" tabindex="0" role="button" id="gallabel" data-i="choose">Choose photos</label>
   <input id="cam" type="file" accept="image/*" capture="environment" tabindex="-1">
   <input id="gal" type="file" accept="image/*" multiple tabindex="-1">
   <p class="quiet" data-i="tips">Lay the page flat on a table. Fill the screen with it. Hold still. Daylight, or a lamp to one side, works best.</p>
 
-  <h2 class="step" data-i="check">Check them</h2>
+  <h2 class="sr" data-i="check">Check them</h2>
   <p id="restored" class="quiet" data-i="restored" hidden>We saved your pages from last time.</p>
   <div id="pages"><p id="empty" class="quiet" data-i="none">No pages yet.</p></div>
 
-  <h2 class="step" data-i="make">Make your PDF</h2>
+  <h2 class="sr" data-i="make">Make your PDF</h2>
   <button id="make" class="primary" disabled data-i="makeBtn">Make PDF</button>
   <div id="result" hidden role="status" aria-live="polite">
     <h3 data-i="pdfDone">Your PDF is ready.</h3>
@@ -125,13 +125,11 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
       <label for="paper" data-i="paper">Paper size</label>
       <select id="paper"><option value="letter" data-i="letter">Letter</option><option value="a4" data-i="a4">A4</option><option value="fit" data-i="fit">Match each page</option></select>
       <label for="quality" data-i="quality">Quality</label>
-      <select id="quality"><option value="150" data-i="qSmall">Small file</option><option value="200" data-i="qStandard">Standard</option><option value="300" data-i="qHigh">High</option></select>
+      <select id="quality"><option value="150" data-i="qSmall">Small file</option><option value="220" data-i="qStandard">Good</option><option value="300" data-i="qHigh">Sharpest</option></select>
       <label class="check"><input id="advanced" type="checkbox"><span data-i="advancedOn">Show advanced options</span></label>
       <div id="advopts" hidden>
         <label for="look" data-i="defaultLook">Usual look</label>
         <select id="look"><option value="color" data-i="colour">Color</option><option value="gray" data-i="gray">Gray</option><option value="bw" data-i="bw">Black and white</option></select>
-        <label for="bleed" data-i="backBleed">When the other side of the page shows through</label>
-        <select id="bleed"><option value="low" data-i="gentle">Leave it</option><option value="normal" data-i="normal">Hide a little</option><option value="high" data-i="strong">Hide it</option></select>
         <label class="check"><input id="autorotate" type="checkbox" checked><span data-i="autorotate">Turn pages upright by themselves</span></label>
         <label class="check"><input id="searchable" type="checkbox"><span data-i="searchable">Make the text searchable</span></label>
         <p class="quiet" data-i="searchableHelp">Lets you search the PDF and hear it read aloud. Slower. Downloads about 5 MB the first time.</p>

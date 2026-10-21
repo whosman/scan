@@ -15,8 +15,7 @@ It has no ads, no account and nothing to buy.
 6. Tap **Make PDF**. The phone opens its share menu, or saves the file.
 
 **Settings** holds the file name, paper size and quality.
-**Show advanced options** adds: the usual look of a page, how hard to remove ink from the back of the sheet,
-automatic turning, and searchable text.
+**Show advanced options** adds: the usual look of a page, automatic turning, and searchable text.
 
 The pages are saved on the phone as the student works. If the browser closes, they are still there.
 **Erase everything saved on this phone** removes them.
@@ -56,7 +55,7 @@ The host must use HTTPS, because browsers allow offline mode only on HTTPS (or `
 Free hosts that work: GitHub Pages, Cloudflare Pages, Netlify, a school web server.
 
 1. Copy all files in this folder to the host.
-2. Open the address on a phone. Wait until the page says "Ready. Works without internet."
+2. Open the address on a phone. Wait until the words "Getting ready" go away.
 3. Turn on airplane mode and reload the page to test offline use.
 
 When you change a file, change `CACHE = 'hwscan-v10'` in `sw.js` to a new name.

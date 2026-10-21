@@ -1,5 +1,5 @@
 /* sw.js - keeps the whole app on the phone so it works with no internet. */
-const CACHE = 'hwscan-v10';
+const CACHE = 'hwscan-v11';
 const FILES = ['./', 'index.html', 'app.js', 'i18n.js', 'db.js', 'ocr.js', 'pdf.js', 'worker.js', 'engine.wasm', 'engine-simd.wasm', 'updown.json', 'updown.bin',
   'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });

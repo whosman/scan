@@ -6,7 +6,7 @@
   const $ = (id) => document.getElementById(id);
   // Cap the photo size: old phones have little memory. Phones that report 2 GB or less, or only two cores, get a smaller cap.
   const LOW_MEMORY = navigator.deviceMemory ? navigator.deviceMemory <= 2 : (navigator.hardwareConcurrency || 4) <= 2;
-  let maxSide = LOW_MEMORY ? 1800 : 2400;
+  let maxSide = LOW_MEMORY ? 2400 : 3600; // the longest side of a photo kept for cleaning; a 12-megapixel photo is 4000 px, so this loses almost nothing
   // Safari before 15 has no createImageBitmap: a decoded image draws the same way
   if (!window.createImageBitmap) {
     window.createImageBitmap = (blob) => new Promise((res, rej) => {
@@ -24,7 +24,7 @@
     set(k, v) { try { localStorage.setItem('hwscan.' + k, v); } catch (e) { /* private mode */ } },
   };
   const BOX = { advanced: 'checkbox', autorotate: 'checkbox', searchable: 'checkbox' };
-  const DEFAULTS = { name: '', paper: 'letter', quality: '200', look: 'gray', bleed: 'normal', autorotate: '1', searchable: '', advanced: '' };
+  const DEFAULTS = { name: '', paper: 'letter', quality: '300', look: 'gray', autorotate: '1', searchable: '', advanced: '' };
   function loadSettings() {
     for (const k of Object.keys(DEFAULTS)) {
       const v = store.get(k, DEFAULTS[k]);
@@ -43,7 +43,7 @@
   }
 
   // ---------- small helpers ----------
-  function setStatus(key) { statusKey = key; if (slowMode && (key === 'ready' || key === 'cleaning')) key += 'Slow'; $('status').textContent = T(key); }
+  function setStatus(key) { statusKey = key; $('status').textContent = key === 'ready' ? '' : T(key); }
   function toBlob(canvas, type, q) { return new Promise((res) => canvas.toBlob(res, type || 'image/jpeg', q)); }
   function canvasOf(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text) x.textContent = text; return x; }
@@ -58,7 +58,7 @@
     const w = new Worker('worker.js' + (/nooffscreen/.test(location.search) ? '?nooffscreen' : /nowasm/.test(location.search) ? '?nowasm' : '')); // ?nooffscreen: test the path for browsers that cannot decode in a worker
     w.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'ready') { canOffscreen = !!m.canOffscreen; if (m.slow && !slowMode) { slowMode = true; maxSide = Math.min(maxSide, 1000); } if (readyLanes.add(i).size === LANES) engineIsReady(); return; }
+      if (m.type === 'ready') { canOffscreen = !!m.canOffscreen; if (m.slow && !slowMode) { slowMode = true; maxSide = Math.min(maxSide, 1200); } if (readyLanes.add(i).size === LANES) engineIsReady(); return; }
       const p = pending.get(m.id); if (!p) return;
       if (m.type === 'decoded') { if (p.onDecoded) p.onDecoded(m); return; }
       pending.delete(m.id); clearTimeout(p.timer); p.res(m);
@@ -91,13 +91,13 @@
       });
     }
   }
-  function engineIsReady() { engineReady = true; setStatus(running ? 'cleaning' : 'ready'); render(); pump(); }
+  function engineIsReady() { engineReady = true; document.documentElement.setAttribute('data-ready', '1'); setStatus(running ? 'cleaning' : 'ready'); render(); pump(); }
 
   // ---------- one page ----------
   function newPage() {
     return { id: nextId++, src: null, sw: 0, sh: 0, quad: null, w: 0, h: 0, blob: null, info: null, rot: 0, look: setting('look'), light: 0, busy: true, error: false, ver: 0 };
   }
-  const MARGIN = { low: 4, normal: 10, high: 24 }; // how far below the paper's white a mark must be to count as ink
+  const MARGIN = 24; // how far below the paper's white a mark must be to count as ink: faint ink from the back of the sheet stays out
   async function decodeMain(file) { // for browsers that cannot decode in a worker. EXIF rotation is applied by the browser.
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
@@ -111,7 +111,8 @@
   function thumbOfBitmap(bmp) { const c = canvasOf(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); if (bmp.close) bmp.close(); return c; }
   // photo -> clean colour page; sets pg.blob, pg.src, pg.info, pg.quad. `file` is the photo (a File, or the saved copy when re-cleaning)
   async function clean(pg, file, quad, lane) {
-    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: Math.min(+setting('quality'), Math.round(maxSide / 11)), margin: MARGIN[setting('bleed')] || 10, autorotate: setting('autorotate'), quad: quad || null };
+    // always clean at the most the photo can give; the quality setting is applied when the PDF is made
+    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: Math.round(maxSide / 11), margin: MARGIN, autorotate: setting('autorotate'), quad: quad || null };
     let r;
     if (canOffscreen) {
       r = await submit({ kind: 'file', id: pg.id, file, maxSide, opts }, undefined, lane, (m) => { pg.sw = m.w; pg.sh = m.h; pg.raw = thumbOfBitmap(m.thumb); render(); }); // the photo shows at once
@@ -120,12 +121,12 @@
     } else {
       const d = await decodeMain(file); pg.sw = d.w; pg.sh = d.h;
       const ts = Math.min(1, 192 / Math.max(d.w, d.h)); pg.raw = canvasOf(Math.max(1, Math.round(d.w * ts)), Math.max(1, Math.round(d.h * ts))); pg.raw.getContext('2d').drawImage(d.canvas, 0, 0, pg.raw.width, pg.raw.height); render();
-      const img = d.canvas.getContext('2d').getImageData(0, 0, d.w, d.h), srcSaved = toBlob(d.canvas, 'image/jpeg', 0.9);
+      const img = d.canvas.getContext('2d').getImageData(0, 0, d.w, d.h), srcSaved = toBlob(d.canvas, 'image/jpeg', 0.92);
       r = await submit({ kind: 'rgba', id: pg.id, width: d.w, height: d.h, rgba: img.data.buffer, opts }, [img.data.buffer], lane);
       pg.src = await srcSaved; d.canvas.width = 0;
       if (!r.ok) throw new Error(r.error);
       const out = canvasOf(r.width, r.height); out.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(r.pixels), r.width, r.height), 0, 0);
-      pg.blob = await toBlob(out, 'image/jpeg', 0.92); out.width = 0;
+      pg.blob = await toBlob(out, 'image/jpeg', 0.95); out.width = 0;
     }
     pg.w = r.width; pg.h = r.height; pg.info = r.info; pg.dpi = r.info.dpiEff;
     pg.quad = r.info.found ? r.info.quad : null; pg.rot = 0; pg.ver++; pg._th = null;
@@ -338,22 +339,27 @@
   // ---------- PDF ----------
   const PAPER = { letter: [8.5, 11.0], a4: [8.27, 11.69] };
   function fileName() { return ($('name').value.trim() || 'Homework').replace(/[\\/:*?"<>|]+/g, '_').replace(/\.pdf$/i, ''); }
-  async function fitCanvas(pg) { // the page on its sheet of paper
-    const pic = await drawPage(pg, 0), dpi = pg.dpi || +setting('quality'), paper = setting('paper');
-    if (paper === 'fit') return { c: pic, ptW: Math.round(pic.width / dpi * 72), ptH: Math.round(pic.height / dpi * 72) };
-    const [wi, hi] = PAPER[paper], Wp = Math.round(wi * dpi), Hp = Math.round(hi * dpi), m = Math.round(0.25 * dpi);
-    const s = Math.min((Wp - 2 * m) / pic.width, (Hp - 2 * m) / pic.height), w = Math.round(pic.width * s), h = Math.round(pic.height * s);
+  async function fitCanvas(pg) { // the page on its sheet of paper, at the resolution the student chose (never more than the photo gave)
+    const pic = await drawPage(pg, 0), paper = setting('paper'), native = pg.dpi || +setting('quality');
+    const dpi = Math.min(+setting('quality'), native), s0 = dpi / native, sw = Math.round(pic.width * s0), sh = Math.round(pic.height * s0);
+    if (paper === 'fit') {
+      let c = pic; if (s0 < 1) { c = canvasOf(sw, sh); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(pic, 0, 0, sw, sh); }
+      return { c, ptW: Math.round(c.width / dpi * 72), ptH: Math.round(c.height / dpi * 72) };
+    }
+    const [wi, hi] = PAPER[paper], Wp = Math.round(wi * dpi), Hp = Math.round(hi * dpi);
+    // the page is already cut to the shape of the paper, so it fills the sheet; shrinking it onto the sheet would blur the writing
+    const s = Math.min(1, Wp / sw, Hp / sh), w = Math.round(sw * s), h = Math.round(sh * s);
     const c = canvasOf(Wp, Hp), g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, Wp, Hp); g.imageSmoothingQuality = 'high';
     g.drawImage(pic, Math.round((Wp - w) / 2), Math.round((Hp - h) / 2), w, h);
     return { c, ptW: Math.round(wi * 72), ptH: Math.round(hi * 72) };
   }
-  async function bytesOf(canvas, pg) { return new Uint8Array(await (await toBlob(canvas, 'image/jpeg', pg.look === 'bw' ? 0.7 : 0.8)).arrayBuffer()); }
+  async function bytesOf(canvas) { return new Uint8Array(await (await toBlob(canvas, 'image/jpeg', +setting('quality') <= 150 ? 0.85 : 0.93)).arrayBuffer()); }
   $('make').addEventListener('click', async () => {
     $('make').disabled = true; $('result').hidden = true; setStatus('making');
     const good = pages.filter((p) => !p.error), out = [], ocr = setting('searchable') && window.HWOCR; let ocrFailed = false;
     try {
       for (let i = 0; i < good.length; i++) {
-        const pg = good[i], f = await fitCanvas(pg), item = { jpeg: await bytesOf(f.c, pg), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
+        const pg = good[i], f = await fitCanvas(pg), item = { jpeg: await bytesOf(f.c), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
         if (ocr) {
           $('status').textContent = T('reading', { n: i + 1, total: good.length });
           try { item.words = await HWOCR.read(f.c, I18N.lang); } catch (e) { ocrFailed = true; /* no text layer; the page itself is fine */ }
@@ -375,12 +381,12 @@
   }
   async function deliver(file) { // share sheet if the phone has one, otherwise save
     if (canShareFiles([file])) {
-      try { await navigator.share({ files: [file], title: file.name }); return; }
+      try { await navigator.share({ files: [file] }); return; }
       catch (e) { if (e && e.name === 'AbortError') return; /* closed the share sheet; anything else falls back to saving */ }
     }
     download(file);
   }
-  $('share').addEventListener('click', () => lastPdf && navigator.share({ files: [lastPdf.file], title: lastPdf.file.name }).catch(() => {}));
+  $('share').addEventListener('click', () => lastPdf && navigator.share({ files: [lastPdf.file] }).catch(() => {}));
   $('save').addEventListener('click', () => lastPdf && download(lastPdf.file));
   $('pics').addEventListener('click', async () => {
     const files = [], base = fileName(), good = pages.filter((p) => !p.error);
@@ -390,7 +396,7 @@
   });
 
   // ---------- settings ----------
-  for (const k of Object.keys(BOX).concat(['name', 'paper', 'quality', 'look', 'bleed'])) $(k).addEventListener('change', () => saveSetting(k));
+  for (const k of Object.keys(BOX).concat(['name', 'paper', 'quality', 'look'])) $(k).addEventListener('change', () => saveSetting(k));
   $('advanced').addEventListener('change', () => { $('advopts').hidden = !$('advanced').checked; });
   $('erase').addEventListener('click', async () => {
     if ($('erase').textContent !== T('eraseAsk')) { $('erase').textContent = T('eraseAsk'); setTimeout(() => { $('erase').textContent = T('erase'); }, 4000); return; }
