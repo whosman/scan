@@ -14,7 +14,7 @@
     });
   }
   const pages = [];                 // see newPage()
-  let nextId = Date.now(), worker = null, queue = Promise.resolve(), lastPdf = null, statusKey = 'loading', engineReady = false;
+  let nextId = Date.now(), lastPdf = null, statusKey = 'loading', engineReady = false;
   const pending = new Map();
 
   // ---------- settings remembered on this phone only ----------
@@ -48,53 +48,86 @@
   function el(tag, cls, text) { const x = document.createElement(tag); if (cls) x.className = cls; if (text) x.textContent = text; return x; }
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // ---------- worker ----------
-  function startWorker() {
-    worker = new Worker('worker.js');
-    worker.onmessage = (e) => { const p = pending.get(e.data.id); if (p) { pending.delete(e.data.id); p(e.data); } };
-    worker.onerror = () => setStatus('crashed');
+  // ---------- workers ----------
+  // One worker a core (at most three, one fewer than the cores so the page stays responsive). Pages are cleaned side by side.
+  const LANES = LOW_MEMORY ? 1 : Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
+  const lanes = [], idle = [], jobs = [];
+  let running = 0, canOffscreen = false;
+  function startLane(i) {
+    const w = new Worker('worker.js' + (/nooffscreen/.test(location.search) ? '?nooffscreen' : '')); // ?nooffscreen: test the path for browsers that cannot decode in a worker
+    w.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'ready') { canOffscreen = !!m.canOffscreen; if (readyLanes.add(i).size === LANES) engineIsReady(); return; }
+      const p = pending.get(m.id); if (!p) return;
+      if (m.type === 'decoded') { if (p.onDecoded) p.onDecoded(m); return; }
+      pending.delete(m.id); clearTimeout(p.timer); p.res(m);
+    };
+    w.onerror = () => setStatus('crashed');
+    lanes[i] = w;
   }
-  function restartWorker() { // a job that never answers must not freeze the app
-    try { worker.terminate(); } catch (e) { /* already gone */ }
-    for (const p of pending.values()) p({ ok: false, error: 'restart' });
-    pending.clear(); startWorker();
+  const readyLanes = new Set();
+  function restartLane(i) { // a job that never answers must not freeze the app
+    try { lanes[i].terminate(); } catch (e) { /* already gone */ }
+    for (const [id, p] of pending) if (p.lane === i) { pending.delete(id); clearTimeout(p.timer); p.res({ ok: false, error: 'restart' }); }
+    startLane(i);
   }
-  function runWorker(msg, transfer) {
+  function submit(msg, transfer, lane, onDecoded) {
     return new Promise((res) => {
-      const timer = setTimeout(() => { if (pending.has(msg.id)) { pending.delete(msg.id); res({ ok: false, error: 'timeout' }); restartWorker(); } }, msg.id === 0 ? 120000 : 240000);
-      pending.set(msg.id, (d) => { clearTimeout(timer); res(d); });
-      worker.postMessage(msg, transfer);
+      const p = { res, onDecoded, lane }; pending.set(msg.id, p);
+      p.timer = setTimeout(() => { if (pending.has(msg.id)) { pending.delete(msg.id); res({ ok: false, error: 'timeout' }); restartLane(lane); } }, 120000);
+      lanes[lane].postMessage(msg, transfer);
     });
   }
+  function enqueue(job) { jobs.push(job); pump(); } // job(lane) runs on the first free worker
+  function pump() {
+    while (jobs.length && idle.length && engineReady) {
+      const lane = idle.shift(), job = jobs.shift();
+      running++; setStatus('cleaning');
+      Promise.resolve().then(() => job(lane)).catch(() => { /* the job marks its own page */ }).then(() => {
+        running--; idle.push(lane);
+        if (!running && !jobs.length) setStatus('ready');
+        pump();
+      });
+    }
+  }
+  function engineIsReady() { engineReady = true; setStatus(running ? 'cleaning' : 'ready'); render(); pump(); }
 
   // ---------- one page ----------
   function newPage() {
     return { id: nextId++, src: null, sw: 0, sh: 0, quad: null, w: 0, h: 0, blob: null, info: null, rot: 0, look: setting('look'), light: 0, busy: true, error: false, ver: 0 };
   }
-  async function decodeFile(file) { // EXIF rotation is applied by the browser; the saved copy is already upright
+  const MARGIN = { low: 4, normal: 10, high: 24 }; // how far below the paper's white a mark must be to count as ink
+  async function decodeMain(file) { // for browsers that cannot decode in a worker. EXIF rotation is applied by the browser.
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
     catch (e) { bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); }); }
     const s = Math.min(1, maxSide / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
-    const c = canvasOf(w, h), g = c.getContext('2d');
+    const c = canvasOf(w, h), g = c.getContext('2d', { willReadFrequently: true });
     g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, w, h);
     if (bmp.close) bmp.close();
-    return { blob: await toBlob(c, 'image/jpeg', 0.9), w, h };
+    return { canvas: c, w, h };
   }
-  async function clean(pg, quad) { // photo -> clean colour page; sets pg.blob, pg.info, pg.quad
-    const bmp = await createImageBitmap(pg.src), c = canvasOf(bmp.width, bmp.height), g = c.getContext('2d', { willReadFrequently: true });
-    g.drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
-    const img = g.getImageData(0, 0, c.width, c.height);
-    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: Math.min(+setting('quality'), Math.round(maxSide / 11)), bleed: setting('bleed'), autorotate: setting('autorotate') };
-    pg.dpi = opts.dpi;
-    if (quad) opts.quad = quad;
-    const r = await runWorker({ id: pg.id, width: img.width, height: img.height, rgba: img.data.buffer, opts }, [img.data.buffer]);
-    if (!r.ok) throw new Error(r.error);
-    const rgb = new Uint8Array(r.color), out = canvasOf(r.width, r.height), og = out.getContext('2d'), id = og.createImageData(r.width, r.height), d = id.data;
-    for (let i = 0, j = 0; j < d.length; i += 3, j += 4) { d[j] = rgb[i]; d[j + 1] = rgb[i + 1]; d[j + 2] = rgb[i + 2]; d[j + 3] = 255; }
-    og.putImageData(id, 0, 0);
-    const t1 = Date.now(); pg.blob = await toBlob(out, 'image/jpeg', 0.92); pg.w = r.width; pg.h = r.height; pg.info = r.info; pg.info.ms = r.ms; pg.info.msEncode = Date.now() - t1;
-    pg.quad = r.info.quad || null; pg.rot = 0; pg.ver++; pg._th = null;
+  function thumbOfBitmap(bmp) { const c = canvasOf(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); if (bmp.close) bmp.close(); return c; }
+  // photo -> clean colour page; sets pg.blob, pg.src, pg.info, pg.quad. `file` is the photo (a File, or the saved copy when re-cleaning)
+  async function clean(pg, file, quad, lane) {
+    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: Math.min(+setting('quality'), Math.round(maxSide / 11)), margin: MARGIN[setting('bleed')] || 10, autorotate: setting('autorotate'), quad: quad || null };
+    let r;
+    if (canOffscreen) {
+      r = await submit({ kind: 'file', id: pg.id, file, maxSide, opts }, undefined, lane, (m) => { pg.sw = m.w; pg.sh = m.h; pg.raw = thumbOfBitmap(m.thumb); render(); }); // the photo shows at once
+      if (!r.ok) throw new Error(r.error);
+      pg.blob = r.blob; if (r.srcBlob) { pg.src = r.srcBlob; pg.sw = r.sw; pg.sh = r.sh; }
+    } else {
+      const d = await decodeMain(file); pg.sw = d.w; pg.sh = d.h;
+      const ts = Math.min(1, 192 / Math.max(d.w, d.h)); pg.raw = canvasOf(Math.max(1, Math.round(d.w * ts)), Math.max(1, Math.round(d.h * ts))); pg.raw.getContext('2d').drawImage(d.canvas, 0, 0, pg.raw.width, pg.raw.height); render();
+      const img = d.canvas.getContext('2d').getImageData(0, 0, d.w, d.h), srcSaved = toBlob(d.canvas, 'image/jpeg', 0.9);
+      r = await submit({ kind: 'rgba', id: pg.id, width: d.w, height: d.h, rgba: img.data.buffer, opts }, [img.data.buffer], lane);
+      pg.src = await srcSaved; d.canvas.width = 0;
+      if (!r.ok) throw new Error(r.error);
+      const out = canvasOf(r.width, r.height); out.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(r.pixels), r.width, r.height), 0, 0);
+      pg.blob = await toBlob(out, 'image/jpeg', 0.92); out.width = 0;
+    }
+    pg.w = r.width; pg.h = r.height; pg.info = r.info; pg.dpi = r.info.dpiEff;
+    pg.quad = r.info.found ? r.info.quad : null; pg.rot = 0; pg.ver++; pg._th = null;
   }
   // Saved as plain bytes, not Blobs: some browsers cannot keep a Blob in IndexedDB, and old Safari is unreliable at it.
   const toBytes = (blob) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsArrayBuffer(blob); });
@@ -113,23 +146,17 @@
       if (replaceId) { pg = pages.find((p) => p.id === replaceId); pg.busy = true; pg.error = false; pg.info = null; }
       else { pg = newPage(); pages.push(pg); }
       replaceId = null; render();
-      queue = queue.then(async () => {
-        setStatus('cleaning');
-        try {
-          const d = await decodeFile(f);
-          pg.src = d.blob; pg.sw = d.w; pg.sh = d.h;
-          await clean(pg, null);
-        } catch (err) { pg.error = true; }
-        pg.busy = false; render(); persist(pg); persistOrder(); setStatus('ready');
+      enqueue(async (lane) => {
+        try { await clean(pg, f, null, lane); } catch (err) { pg.error = true; }
+        pg.busy = false; pg.raw = null; render(); persist(pg); persistOrder();
       });
     }
   }
   function reclean(pg, quad) {
     pg.busy = true; pg.error = false; render();
-    queue = queue.then(async () => {
-      setStatus('cleaning');
-      try { await clean(pg, quad); } catch (err) { pg.error = true; }
-      pg.busy = false; render(); if (!$('editor').hidden && cur() === pg) drawEditor(); persist(pg); setStatus('ready');
+    enqueue(async (lane) => {
+      try { await clean(pg, pg.src, quad, lane); } catch (err) { pg.error = true; }
+      pg.busy = false; pg.raw = null; render(); if (!$('editor').hidden && cur() === pg) drawEditor(); persist(pg);
     });
   }
   function retake(pg) {
@@ -175,6 +202,9 @@
     $('camlabel').textContent = T(pages.length ? 'takeMore' : 'take');
     pages.forEach((pg, i) => {
       const row = el('div', 'page'), meta = el('div', 'meta');
+      if (pg.busy && pg.raw) {
+        const th = el('canvas', 'thumb dim'); th.width = pg.raw.width; th.height = pg.raw.height; th.getContext('2d').drawImage(pg.raw, 0, 0); row.appendChild(th);
+      }
       if (!pg.busy && !pg.error) {
         const th = el('canvas', 'thumb'); th.setAttribute('role', 'img'); th.setAttribute('aria-label', T('preview', { n: i + 1 })); th.onclick = () => openEditor(i);
         thumbOf(pg).then((c) => { th.width = c.width; th.height = c.height; th.getContext('2d').drawImage(c, 0, 0); });
@@ -360,42 +390,10 @@
   $('cam').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
   $('gal').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
 
-  // ---------- tune to this phone ----------
-  // Time a small standard page, predict the time for a full-size photo, and lower the working size if that would be slow.
-  // A page costs a fixed part (finding the page, which way is up) plus a part that grows with the pixels.
-  // CALIB_MS and FULL_MS are what the small standard page and a full 2400 px photo take on the development desktop.
-  const CALIB_MS = 1100, FULL_MS = 2100, TARGET_MS = 4500;
-  const SLOW = +((location.search.match(/[?&]slow=([\d.]+)/) || [])[1]) || 1; // ?slow=4 pretends the phone is 4 times slower (for tests)
-  function calibImage() { // a dark table, a tilted sheet of paper, and lines of writing
-    const w = 640, h = 480, c = canvasOf(w, h), g = c.getContext('2d');
-    g.fillStyle = '#4a3a2c'; g.fillRect(0, 0, w, h);
-    g.save(); g.translate(w / 2, h / 2); g.rotate(0.07); g.fillStyle = '#efece3'; g.fillRect(-165, -213, 330, 426); // letter-shaped
-    g.fillStyle = '#1d2a55'; for (let i = 0; i < 14; i++) g.fillRect(-135, -180 + i * 25, 90 + (i * 37) % 170, 5);
-    g.restore();
-    return g.getImageData(0, 0, w, h);
-  }
-  async function calibrate() {
-    try {
-      let ms = 0;
-      for (let k = 0; k < 2; k++) { // the first run warms the engine; the second is the one we trust
-        const img = calibImage(), r = await runWorker({ id: -1 - k, width: img.width, height: img.height, rgba: img.data.buffer, opts: { dpi: 100 } }, [img.data.buffer]);
-        if (!r || !r.ok) return; ms = r.ms * SLOW;
-      }
-      const speed = ms / CALIB_MS, predicted = FULL_MS * speed; window.hwSpeed = { calibMs: ms, predictedMs: Math.round(predicted) };
-      if (predicted > TARGET_MS) { // the share of the time left for the pixel part sets the size
-        const share = (TARGET_MS / speed - CALIB_MS) / (FULL_MS - CALIB_MS);
-        maxSide = Math.max(1200, Math.round(maxSide * Math.sqrt(Math.max(0, Math.min(1, share)))));
-      }
-      window.hwSpeed.maxSide = maxSide;
-    } catch (e) { /* keep the defaults */ }
-  }
-
   // ---------- start ----------
   loadSettings(); $('advopts').hidden = !$('advanced').checked;
   applyLang();
-  startWorker();
-  runWorker({ id: 0, width: 4, height: 4, rgba: new Uint8ClampedArray(64).buffer, opts: { dpi: 50 } }) // warm up
-    .then((r) => { if (r && r.ok) { engineReady = true; setStatus('ready'); render(); calibrate(); } else setStatus('stuck'); });
+  for (let i = 0; i < LANES; i++) { startLane(i); idle.push(i); } // each worker loads the engine and says "ready"
   setTimeout(() => { if (!engineReady) setStatus('stuck'); }, 45000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   HWDB.loadAll().then((saved) => {
