@@ -39310,8 +39310,8 @@ function asmFunc(imports) {
                                         $6 = 0;
                                         while (1) {
                                          $5_1 = Math_fround(Math_fround($6 >>> 0) / Math_fround(7.0));
-                                         $62_1 = Math_fround(Math_fround($5_1 * Math_fround(.20000000298023224)) + Math_fround(.10000000149011612));
-                                         $44_1 = Math_fround(Math_fround(Math_fround($5_1 * Math_fround(.30000001192092896)) + Math_fround(.6000000238418579)) - $62_1);
+                                         $62_1 = Math_fround(Math_fround($5_1 * Math_fround(.3799999952316284)) + Math_fround(.10000000149011612));
+                                         $44_1 = Math_fround(Math_fround(Math_fround($5_1 * Math_fround(.4000000059604645)) + Math_fround(.6000000238418579)) - $62_1);
                                          $3_1 = 0;
                                          while (1) {
                                           $5_1 = Math_fround(0.0);
@@ -39681,7 +39681,7 @@ function asmFunc(imports) {
                                              break block246
                                             }
                                             $62_1 = HEAPF32[$3_1 + $31_1 >> 2];
-                                            $12 = Math_fround(Math_fround(Math_fround($62_1 + Math_fround(-1.0)) * Math_fround(-.25)) + Math_fround(1.0));
+                                            $12 = Math_fround(Math_fround(1.0) - Math_fround(Math_fround($62_1 + Math_fround(-1.0)) * Math_fround(.5)));
                                             $12 = $12 != $12 ? Math_fround(0.0) : $12;
                                             $12 = Math_fround(Math_fround(Math_fround(Math_min($12 > Math_fround(0.0) ? $12 : Math_fround(0.0), Math_fround(1.0))) * Math_fround(7.0)) + Math_fround(.5));
                                             $17_1 = $12 >= Math_fround(0.0);
