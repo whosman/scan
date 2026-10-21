@@ -49,6 +49,7 @@ The pages are saved on the phone as the student works. If the browser closes, th
 | `updown.bin`, `updown.json` | Orientation model weights (0.9 MB) |
 | `pdf.js` | PDF writer |
 | `ocr.js`, `ocr/` | Optional text reader (Tesseract.js, Apache-2.0). Fetched only if the student turns on searchable text |
+| `classic/` | The simple version: an earlier, smaller build for old phones and phones without WebAssembly. It has its own service worker. Students reach it from a link on the main page |
 | `sw.js`, `manifest.webmanifest`, `icon*` | Offline cache and home-screen install |
 
 ## How to put the app online

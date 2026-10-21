@@ -13,7 +13,8 @@
     reading: 'Reading page {n} of {total}…',
     crashed: 'Something went wrong. Please reload the page.',
     noscript: 'This app needs JavaScript. Please turn it on and reload.',
-    oldphone: 'This phone is too old for the app. Try a newer browser, such as Chrome or Firefox.',
+    stuck: 'This is taking too long. Reload the page. If it still fails, use the simple version at the bottom of the page.',
+    classicLink: 'Older or slower phone? Use the simple version.',
 
     add: 'Add your pages',
     take: 'Take a photo',
@@ -118,7 +119,8 @@
     reading: 'Leyendo la página {n} de {total}…',
     crashed: 'Algo salió mal. Vuelve a cargar la página.',
     noscript: 'Esta aplicación necesita JavaScript. Actívalo y vuelve a cargar.',
-    oldphone: 'Este teléfono es demasiado antiguo. Prueba con un navegador más nuevo, como Chrome o Firefox.',
+    stuck: 'Esto tarda demasiado. Vuelve a cargar la página. Si sigue fallando, usa la versión sencilla al final de la página.',
+    classicLink: '¿Teléfono viejo o lento? Usa la versión sencilla.',
 
     add: 'Agrega tus páginas',
     take: 'Tomar una foto',

@@ -58,11 +58,23 @@ details > div { padding-top: 12px; }
 #cropc { touch-action: none; }
 pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background: #fff; border: 1px solid #000; padding: 8px; }
 #oldphone { display: none; padding: 16px; border: 2px solid #000; margin: 24px 0; }
+.nofull main { display: none; }
+.linkbtn { display: block; margin: 12px 0 0; padding: 12px 0; color: #000; font-weight: 700; text-decoration: underline; }
 </style>
 </head>
 <body>
-<div id="oldphone">This phone is too old for HW Scan. Try a newer browser, such as Chrome or Firefox.<br>Este telÃ©fono es demasiado antiguo. Prueba con un navegador mÃ¡s nuevo, como Chrome o Firefox.</div>
-<script>if (typeof WebAssembly === 'undefined' || !window.Worker) { document.getElementById('oldphone').style.display = 'block'; }</script>
+<div id="oldphone">
+  <p><strong>This phone cannot run the full app.</strong> The simple version works on older phones.<br>
+  <strong>Este teléfono no puede usar la aplicación completa.</strong> La versión sencilla funciona en teléfonos más viejos.</p>
+  <a class="btn primary" href="classic/">Simple version / Versión sencilla</a>
+</div>
+<script>
+/* ES5 on purpose: it must run on any phone. Without WebAssembly or workers the full app cannot start, so send the student to the simple version. */
+(function () {
+  var no = typeof WebAssembly === 'undefined' || !window.Worker || !window.Promise;
+  if (no) { document.getElementById('oldphone').style.display = 'block'; document.documentElement.className += ' nofull'; }
+})();
+</script>
 
 <main id="home">
   <h1>HW Scan</h1>
@@ -114,12 +126,13 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
         <p class="quiet" data-i="searchableHelp">Lets you search the PDF and have it read aloud. Slower. Needs a few MB the first time you use it.</p>
       </div>
       <button id="install" hidden data-i="install">Put HW Scan on your home screen</button>
-      <p id="installhelp" class="quiet" data-i="installHelp">In your browser menu, choose â€œAdd to Home screenâ€.</p>
+      <p id="installhelp" class="quiet" data-i="installHelp">In your browser menu, choose “Add to Home screen”.</p>
       <button id="erase" data-i="erase">Erase everything saved on this phone</button>
     </div>
   </details>
 
-  <p class="quiet" style="margin-top:32px" data-i="footer">Free and open source. Your photos never leave this phone.</p>
+  <a class="linkbtn" id="classic" href="classic/" data-i="classicLink">Older or slower phone? Use the simple version.</a>
+  <p class="quiet" style="margin-top:16px" data-i="footer">Free and open source. Your photos never leave this phone.</p>
 </main>
 
 <main id="editor" hidden>

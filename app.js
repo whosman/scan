@@ -3,7 +3,16 @@
   'use strict';
   const T = (k, v) => I18N.t(k, v);
   const $ = (id) => document.getElementById(id);
-  const MAX_SIDE = 2400;            // cap the photo size: old phones have little memory
+  // Cap the photo size: old phones have little memory. Phones that report 2 GB or less, or only two cores, get a smaller cap.
+  const LOW_MEMORY = navigator.deviceMemory ? navigator.deviceMemory <= 2 : (navigator.hardwareConcurrency || 4) <= 2;
+  const MAX_SIDE = LOW_MEMORY ? 1800 : 2400;
+  // Safari before 15 has no createImageBitmap: a decoded image draws the same way
+  if (!window.createImageBitmap) {
+    window.createImageBitmap = (blob) => new Promise((res, rej) => {
+      const url = URL.createObjectURL(blob), im = new Image();
+      im.onload = () => { URL.revokeObjectURL(url); res(im); }; im.onerror = (e) => { URL.revokeObjectURL(url); rej(e); }; im.src = url;
+    });
+  }
   const pages = [];                 // see newPage()
   let nextId = Date.now(), worker = null, queue = Promise.resolve(), lastPdf = null, statusKey = 'loading', engineReady = false;
   const pending = new Map();
@@ -46,7 +55,18 @@
     worker.onmessage = (e) => { const p = pending.get(e.data.id); if (p) { pending.delete(e.data.id); p(e.data); } };
     worker.onerror = () => setStatus('crashed');
   }
-  function runWorker(msg, transfer) { return new Promise((res) => { pending.set(msg.id, res); worker.postMessage(msg, transfer); }); }
+  function restartWorker() { // a job that never answers must not freeze the app
+    try { worker.terminate(); } catch (e) { /* already gone */ }
+    for (const p of pending.values()) p({ ok: false, error: 'restart' });
+    pending.clear(); startWorker();
+  }
+  function runWorker(msg, transfer) {
+    return new Promise((res) => {
+      const timer = setTimeout(() => { if (pending.has(msg.id)) { pending.delete(msg.id); res({ ok: false, error: 'timeout' }); restartWorker(); } }, msg.id === 0 ? 120000 : 240000);
+      pending.set(msg.id, (d) => { clearTimeout(timer); res(d); });
+      worker.postMessage(msg, transfer);
+    });
+  }
 
   // ---------- one page ----------
   function newPage() {
@@ -225,18 +245,30 @@
     g.lineWidth = 1.5; g.strokeStyle = '#000'; g.stroke();
     for (const p of P) { g.beginPath(); g.arc(p[0], p[1], 14, 0, 7); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#000'; g.stroke(); }
   }
-  function cropPos(e) { const r = $('cropc').getBoundingClientRect(), c = $('cropc'); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; }
-  $('cropc').addEventListener('pointerdown', (e) => {
-    const [x, y] = cropPos(e), k = $('cropc').width / $('cropc').getBoundingClientRect().width; let best = -1, bd = 36 * k;
-    crop.pts.forEach((p, i) => { const d = Math.hypot(p[0] - x, p[1] - y); if (d < bd) { bd = d; best = i; } });
-    crop.drag = best; if (best >= 0) { try { $('cropc').setPointerCapture(e.pointerId); } catch (err) { /* old browsers */ } e.preventDefault(); }
-  });
-  $('cropc').addEventListener('pointermove', (e) => {
-    if (!crop || crop.drag < 0) return; const [x, y] = cropPos(e), c = $('cropc');
+  function cropPos(p) { const r = $('cropc').getBoundingClientRect(), c = $('cropc'); return [(p.clientX - r.left) * c.width / r.width, (p.clientY - r.top) * c.height / r.height]; }
+  function dragStart(p, e) { // p: anything with clientX and clientY
+    const [x, y] = cropPos(p), k = $('cropc').width / $('cropc').getBoundingClientRect().width; let best = -1, bd = 36 * k;
+    crop.pts.forEach((q, i) => { const d = Math.hypot(q[0] - x, q[1] - y); if (d < bd) { bd = d; best = i; } });
+    crop.drag = best; if (best >= 0) e.preventDefault();
+    return best >= 0;
+  }
+  function dragMove(p, e) {
+    if (!crop || crop.drag < 0) return; const [x, y] = cropPos(p), c = $('cropc');
     crop.pts[crop.drag] = [Math.max(0, Math.min(c.width - 1, x)), Math.max(0, Math.min(c.height - 1, y))]; drawCrop(); e.preventDefault();
-  });
+  }
   const endDrag = () => { if (crop) crop.drag = -1; };
-  $('cropc').addEventListener('pointerup', endDrag); $('cropc').addEventListener('pointercancel', endDrag);
+  const cc = $('cropc');
+  if (window.PointerEvent) {
+    cc.addEventListener('pointerdown', (e) => { if (dragStart(e, e)) { try { cc.setPointerCapture(e.pointerId); } catch (err) { /* nothing to capture */ } } });
+    cc.addEventListener('pointermove', (e) => dragMove(e, e));
+    cc.addEventListener('pointerup', endDrag); cc.addEventListener('pointercancel', endDrag);
+  } else { // Safari before 13 has touch events only
+    cc.addEventListener('touchstart', (e) => { if (e.touches.length === 1) dragStart(e.touches[0], e); });
+    cc.addEventListener('touchmove', (e) => { if (e.touches.length === 1) dragMove(e.touches[0], e); });
+    cc.addEventListener('touchend', endDrag); cc.addEventListener('touchcancel', endDrag);
+    cc.addEventListener('mousedown', (e) => dragStart(e, e)); cc.addEventListener('mousemove', (e) => dragMove(e, e));
+    cc.addEventListener('mouseup', endDrag);
+  }
   function order4(p) { // tl, tr, br, bl whatever order the student dragged them into
     const sum = p.map((q) => q[0] + q[1]), dif = p.map((q) => q[0] - q[1]), ix = (a, f) => a.indexOf(f(...a));
     return [p[ix(sum, Math.min)], p[ix(dif, Math.max)], p[ix(sum, Math.max)], p[ix(dif, Math.min)]];
@@ -329,7 +361,8 @@
   applyLang(store.get('lang', '') || I18N.detect());
   startWorker();
   runWorker({ id: 0, width: 4, height: 4, rgba: new Uint8ClampedArray(64).buffer, opts: { dpi: 50 } }) // warm up
-    .then(() => { engineReady = true; setStatus('ready'); render(); });
+    .then((r) => { if (r && r.ok) { engineReady = true; setStatus('ready'); render(); } else setStatus('stuck'); });
+  setTimeout(() => { if (!engineReady) setStatus('stuck'); }, 45000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   HWDB.loadAll().then((saved) => {
     if (!saved.length || pages.length) return;
