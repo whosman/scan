@@ -1,0 +1,17 @@
+{
+  "name": "hwscan",
+  "private": true,
+  "version": "0.3.0",
+  "license": "MIT",
+  "description": "Offline phone app: photos of homework -> one clean PDF",
+  "scripts": {
+    "serve": "python3 -m http.server 8765 --directory app",
+    "build": "sh engine/build.sh",
+    "test:engine": "python3 tests/make_samples.py tests/samples && python3 tests/check_engine.py tests/samples",
+    "test:i18n": "node tests/check_i18n.js",
+    "test:browser": "node tests/browser_test.js tests/samples/sample1.jpg tests/samples/sample2.jpg"
+  },
+  "devDependencies": {
+    "puppeteer": "23.11.1"
+  }
+}
