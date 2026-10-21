@@ -75,8 +75,8 @@ matched by their English text, so keep the `WARN` table in step with `hwscan-cor
 
 ## Size and speed
 
-The first download is about 11.4 MB, most of it `opencv.js`. After that, the app uses no data.
-Searchable text adds about 6 MB, once.
+The first visit downloads about 5 MB over the network (`opencv.js` is 10.4 MB unpacked and 3.4 MB compressed; GitHub Pages compresses it).
+After that, the app uses no data. Searchable text adds about 4.5 MB, once.
 
 Photos are reduced to 2400 px on the long side before processing.
 This limits memory use on phones with 2 GB of RAM or less.
