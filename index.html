@@ -115,12 +115,12 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
       <label class="check"><input id="advanced" type="checkbox"><span data-i="advancedOn">Show advanced options</span></label>
       <div id="advopts" hidden>
         <label for="look" data-i="defaultLook">Usual look</label>
-        <select id="look"><option value="color" data-i="colour">Colour</option><option value="gray" data-i="gray">Gray</option><option value="bw" data-i="bw">Black and white</option></select>
-        <label for="bleed" data-i="backBleed">Ink from the back of the sheet</label>
+        <select id="look"><option value="color" data-i="colour">Color</option><option value="gray" data-i="gray">Gray</option><option value="bw" data-i="bw">Black and white</option></select>
+        <label for="bleed" data-i="backBleed">Show-through from the back of the sheet</label>
         <select id="bleed"><option value="low" data-i="gentle">Keep it</option><option value="normal" data-i="normal">Normal</option><option value="high" data-i="strong">Remove it</option></select>
         <label class="check"><input id="autorotate" type="checkbox" checked><span data-i="autorotate">Turn pages upright by themselves</span></label>
         <label class="check"><input id="searchable" type="checkbox"><span data-i="searchable">Make the text searchable</span></label>
-        <p class="quiet" data-i="searchableHelp">Lets you search the PDF and have it read aloud. Slower. Needs a few MB the first time you use it.</p>
+        <p class="quiet" data-i="searchableHelp">Lets you search the PDF and hear it read aloud. Slower. Downloads about 5 MB the first time.</p>
       </div>
       <button id="install" hidden data-i="install">Put HW Scan on your home screen</button>
       <p id="installhelp" class="quiet" data-i="installHelp">In your browser menu, choose “Add to Home screen”.</p>
@@ -135,7 +135,7 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
   <h1 id="edtitle">Page 1</h1>
   <canvas id="prev"></canvas>
   <div class="seg" role="group" id="looks">
-    <button type="button" data-look="color" data-i="colour">Colour</button>
+    <button type="button" data-look="color" data-i="colour">Color</button>
     <button type="button" data-look="gray" data-i="gray">Gray</button>
     <button type="button" data-look="bw" data-i="bw">Black and white</button>
   </div>
@@ -148,7 +148,7 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
   <button id="edcrop" type="button" data-i="edges">Adjust the edges</button>
   <button id="edwhole" type="button" data-i="wholePhoto">Use the whole photo</button>
   <button id="edretake" type="button" data-i="retake">Retake</button>
-  <details id="eddetails" hidden><summary data-i="details">Details for experts</summary><div><pre id="edinfo"></pre></div></details>
+  <details id="eddetails" hidden><summary data-i="details">Technical details</summary><div><pre id="edinfo"></pre></div></details>
   <button id="eddone" type="button" class="primary" data-i="done">Done</button>
 </main>
 

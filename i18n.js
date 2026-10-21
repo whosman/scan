@@ -43,7 +43,7 @@
 
     done: 'Done',
     back: 'Back',
-    colour: 'Colour',
+    colour: 'Color',
     gray: 'Gray',
     bw: 'Black and white',
     look: 'Look',
@@ -56,7 +56,7 @@
     cropHelp: 'Drag each dot to a corner of the page.',
     cropApply: 'Use these edges',
     cancel: 'Cancel',
-    details: 'Details for experts',
+    details: 'Technical details',
 
     pdfDone: 'Your PDF is ready.',
     pdfInfo: '{pages} · {mb} MB',
@@ -84,8 +84,8 @@
     advancedOn: 'Show advanced options',
     searchable: 'Make the text searchable',
     searchFail: 'The text could not be made searchable. Connect to the internet once and try again.',
-    searchableHelp: 'Lets you search the PDF and have it read aloud. Slower. Needs a few MB the first time you use it.',
-    backBleed: 'Ink from the back of the sheet',
+    searchableHelp: 'Lets you search the PDF and hear it read aloud. Slower. Downloads about 5 MB the first time.',
+    backBleed: 'Show-through from the back of the sheet',
     gentle: 'Keep it',
     normal: 'Normal',
     strong: 'Remove it',
