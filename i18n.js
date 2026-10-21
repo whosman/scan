@@ -1,7 +1,7 @@
-/* i18n.js - every word the student sees. To add a language, copy the `en` block, translate it, and add it to LANGS. MIT licence. */
+/* i18n.js - every word the student sees, in one place. To add a language, copy the `en` block, translate it, and add it to LANGS. MIT licence. */
 (function (root) {
   'use strict';
-  const LANGS = { en: 'English', es: 'Español' };
+  const LANGS = { en: 'English' };
   const S = {};
 
   S.en = {
@@ -13,8 +13,7 @@
     reading: 'Reading page {n} of {total}…',
     crashed: 'Something went wrong. Please reload the page.',
     noscript: 'This app needs JavaScript. Please turn it on and reload.',
-    stuck: 'This is taking too long. Reload the page. If it still fails, use the simple version at the bottom of the page.',
-    classicLink: 'Older or slower phone? Use the simple version.',
+    stuck: 'This is taking too long. Reload the page. If it still fails, try a newer browser, such as Chrome or Firefox.',
 
     add: 'Add your pages',
     take: 'Take a photo',
@@ -110,106 +109,6 @@
   };
   for (const [en, key] of Object.entries(WARN)) S.en[key] = en;
 
-  S.es = {
-    tagline: 'Fotografía tu tarea. Obtén un PDF limpio.',
-    loading: 'Preparando. La primera vez tarda un momento.',
-    ready: 'Listo. Funciona sin internet.',
-    cleaning: 'Limpiando tus fotos…',
-    making: 'Creando tu PDF…',
-    reading: 'Leyendo la página {n} de {total}…',
-    crashed: 'Algo salió mal. Vuelve a cargar la página.',
-    noscript: 'Esta aplicación necesita JavaScript. Actívalo y vuelve a cargar.',
-    stuck: 'Esto tarda demasiado. Vuelve a cargar la página. Si sigue fallando, usa la versión sencilla al final de la página.',
-    classicLink: '¿Teléfono viejo o lento? Usa la versión sencilla.',
-
-    add: 'Agrega tus páginas',
-    take: 'Tomar una foto',
-    takeMore: 'Tomar otra foto',
-    choose: 'Elegir fotos',
-    tips: 'Pon la hoja plana sobre una mesa. Que llene la pantalla. No te muevas. Funciona mejor con luz del día, o con una lámpara a un lado.',
-    check: 'Revísalas',
-    none: 'Todavía no hay páginas.',
-    make: 'Crea tu PDF',
-    makeBtn: 'Crear PDF',
-    restored: 'Guardamos tus páginas de la última vez.',
-    startOver: 'Empezar de nuevo',
-    startOverAsk: 'Toca otra vez para quitar todas las páginas',
-
-    page: 'Página {n}',
-    cleaningPage: 'Limpiando esta página…',
-    good: 'Se ve bien.',
-    edit: 'Editar',
-    left: 'Girar a la izquierda',
-    right: 'Girar a la derecha',
-    up: 'Subir',
-    down: 'Bajar',
-    retake: 'Repetir foto',
-    remove: 'Quitar',
-    cantRead: 'No pudimos leer esta foto. Tómala otra vez.',
-    preview: 'Vista previa de la página {n}',
-
-    done: 'Listo',
-    back: 'Atrás',
-    colour: 'Color',
-    gray: 'Gris',
-    bw: 'Blanco y negro',
-    look: 'Aspecto',
-    lighter: 'Más claro',
-    darker: 'Más oscuro',
-    brightness: 'Claro y oscuro',
-    edges: 'Ajustar los bordes',
-    wholePhoto: 'Usar toda la foto',
-    autoEdges: 'Buscar los bordes otra vez',
-    cropHelp: 'Arrastra cada punto a una esquina de la hoja.',
-    cropApply: 'Usar estos bordes',
-    cancel: 'Cancelar',
-    details: 'Detalles para expertos',
-
-    pdfDone: 'Tu PDF está listo.',
-    pdfInfo: '{pages} · {mb} MB',
-    page_one: '1 página',
-    page_other: '{n} páginas',
-    share: 'Compartir',
-    save: 'Guardar en este teléfono',
-    saveImages: 'Guardar como imágenes',
-    pdfHelp: 'Si no se abrió nada, busca {name} en tus Descargas.',
-
-    settings: 'Ajustes',
-    fileName: 'Nombre del archivo',
-    fileNameHint: 'Mate-Tarea3-Lopez-Ana',
-    language: 'Idioma',
-    paper: 'Tamaño del papel',
-    letter: 'Carta',
-    a4: 'A4',
-    fit: 'Ajustar a cada página',
-    quality: 'Calidad',
-    qSmall: 'Archivo pequeño',
-    qStandard: 'Estándar',
-    qHigh: 'Alta',
-    defaultLook: 'Aspecto habitual',
-    advanced: 'Avanzado',
-    advancedOn: 'Mostrar opciones avanzadas',
-    searchable: 'Hacer el texto buscable',
-    searchFail: 'No se pudo hacer buscable el texto. Conéctate a internet una vez y vuelve a intentarlo.',
-    searchableHelp: 'Permite buscar en el PDF y que se lea en voz alta. Es más lento. La primera vez necesita unos MB.',
-    backBleed: 'Tinta del reverso de la hoja',
-    gentle: 'Conservarla',
-    normal: 'Normal',
-    strong: 'Quitarla',
-    autorotate: 'Enderezar las páginas automáticamente',
-    install: 'Pon HW Scan en tu pantalla de inicio',
-    installHelp: 'En el menú del navegador, elige «Añadir a la pantalla de inicio».',
-    erase: 'Borrar todo lo guardado en este teléfono',
-    eraseAsk: 'Toca otra vez para borrar',
-    erased: 'Todo está borrado.',
-    footer: 'Gratis y de código abierto. Tus fotos nunca salen de este teléfono.',
-    'w.small': 'La foto es demasiado pequeña para leerse bien. Acerca el teléfono.',
-    'w.blur': 'La foto está borrosa. No te muevas y toca la pantalla para enfocar.',
-    'w.glare': 'Hay reflejo en la página. Inclina el teléfono o mueve la luz.',
-    'w.cut': 'Falta un trozo de la página. Mantén las cuatro esquinas a la vista.',
-    'w.edges': 'Los bordes de la hoja casi no se ven. Usa una mesa más oscura y mantén las cuatro esquinas a la vista.',
-    'w.up': 'No pudimos saber cuál es la parte de arriba. Revisa esta página.',
-  };
 
   let lang = 'en';
   function t(key, vars) {

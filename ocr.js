@@ -7,7 +7,7 @@
   function script(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('no ocr')); document.head.appendChild(s); }); }
   async function get(lang) {
     if (!root.Tesseract) await (loading = loading || script('ocr/tesseract.min.js'));
-    const l = lang === 'es' ? 'spa' : 'eng';
+    const l = 'eng';
     if (worker && workerLang === l) return worker;
     if (worker) { await worker.terminate(); worker = null; }
     worker = await root.Tesseract.createWorker(l, 1, { workerPath: 'ocr/worker.min.js', corePath: 'ocr', langPath: 'ocr/lang', gzip: true, cacheMethod: 'none' });

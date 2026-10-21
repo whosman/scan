@@ -5,7 +5,7 @@
   const $ = (id) => document.getElementById(id);
   // Cap the photo size: old phones have little memory. Phones that report 2 GB or less, or only two cores, get a smaller cap.
   const LOW_MEMORY = navigator.deviceMemory ? navigator.deviceMemory <= 2 : (navigator.hardwareConcurrency || 4) <= 2;
-  const MAX_SIDE = LOW_MEMORY ? 1800 : 2400;
+  let maxSide = LOW_MEMORY ? 1800 : 2400;
   // Safari before 15 has no createImageBitmap: a decoded image draws the same way
   if (!window.createImageBitmap) {
     window.createImageBitmap = (blob) => new Promise((res, rej) => {
@@ -23,20 +23,19 @@
     set(k, v) { try { localStorage.setItem('hwscan.' + k, v); } catch (e) { /* private mode */ } },
   };
   const BOX = { advanced: 'checkbox', autorotate: 'checkbox', searchable: 'checkbox' };
-  const DEFAULTS = { name: '', paper: 'letter', quality: '200', look: 'color', bleed: 'normal', autorotate: '1', searchable: '', advanced: '', lang: '' };
+  const DEFAULTS = { name: '', paper: 'letter', quality: '200', look: 'color', bleed: 'normal', autorotate: '1', searchable: '', advanced: '' };
   function loadSettings() {
     for (const k of Object.keys(DEFAULTS)) {
       const v = store.get(k, DEFAULTS[k]);
-      if (BOX[k]) $(k).checked = v === '1'; else if (k !== 'lang') $(k).value = v;
+      if (BOX[k]) $(k).checked = v === '1'; else $(k).value = v;
     }
   }
   function saveSetting(k) { store.set(k, BOX[k] ? ($(k).checked ? '1' : '') : $(k).value); }
   const setting = (k) => BOX[k] ? $(k).checked : $(k).value;
 
   // ---------- language ----------
-  for (const [code, name] of Object.entries(I18N.LANGS)) { const o = document.createElement('option'); o.value = code; o.textContent = name; $('lang').appendChild(o); }
-  function applyLang(l) {
-    $('lang').value = I18N.set(l);
+  function applyLang() {
+    I18N.set('en');
     setStatus(statusKey); render(); if (!$('editor').hidden) drawEditor();
     $('install').hidden = !deferredInstall;
     $('installhelp').hidden = !!deferredInstall;
@@ -76,7 +75,7 @@
     let bmp;
     try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
     catch (e) { bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); }); }
-    const s = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
+    const s = Math.min(1, maxSide / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
     const c = canvasOf(w, h), g = c.getContext('2d');
     g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, w, h);
     if (bmp.close) bmp.close();
@@ -86,7 +85,8 @@
     const bmp = await createImageBitmap(pg.src), c = canvasOf(bmp.width, bmp.height), g = c.getContext('2d', { willReadFrequently: true });
     g.drawImage(bmp, 0, 0); if (bmp.close) bmp.close();
     const img = g.getImageData(0, 0, c.width, c.height);
-    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: +setting('quality'), bleed: setting('bleed'), autorotate: setting('autorotate') };
+    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: Math.min(+setting('quality'), Math.round(maxSide / 11)), bleed: setting('bleed'), autorotate: setting('autorotate') };
+    pg.dpi = opts.dpi;
     if (quad) opts.quad = quad;
     const r = await runWorker({ id: pg.id, width: img.width, height: img.height, rgba: img.data.buffer, opts }, [img.data.buffer]);
     if (!r.ok) throw new Error(r.error);
@@ -96,9 +96,14 @@
     const t1 = Date.now(); pg.blob = await toBlob(out, 'image/jpeg', 0.92); pg.w = r.width; pg.h = r.height; pg.info = r.info; pg.info.ms = r.ms; pg.info.msEncode = Date.now() - t1;
     pg.quad = r.info.quad || null; pg.rot = 0; pg.ver++; pg._th = null;
   }
-  function persist(pg) {
+  // Saved as plain bytes, not Blobs: some browsers cannot keep a Blob in IndexedDB, and old Safari is unreliable at it.
+  const toBytes = (blob) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsArrayBuffer(blob); });
+  const fromBytes = (buf) => new Blob([buf], { type: 'image/jpeg' });
+  async function persist(pg) {
     if (pg.busy || pg.error || !pg.blob) return;
-    HWDB.putPage({ id: pg.id, src: pg.src, sw: pg.sw, sh: pg.sh, quad: pg.quad, w: pg.w, h: pg.h, blob: pg.blob, info: pg.info, rot: pg.rot, look: pg.look, light: pg.light });
+    const [src, blob] = await Promise.all([toBytes(pg.src), toBytes(pg.blob)]);
+    if (!src || !blob) return;
+    HWDB.putPage({ id: pg.id, dpi: pg.dpi, src, sw: pg.sw, sh: pg.sh, quad: pg.quad, w: pg.w, h: pg.h, blob, info: pg.info, rot: pg.rot, look: pg.look, light: pg.light });
   }
   const persistOrder = () => HWDB.setOrder(pages.map((p) => p.id));
 
@@ -284,7 +289,7 @@
   const PAPER = { letter: [8.5, 11.0], a4: [8.27, 11.69] };
   function fileName() { return ($('name').value.trim() || 'Homework').replace(/[\\/:*?"<>|]+/g, '_').replace(/\.pdf$/i, ''); }
   async function fitCanvas(pg) { // the page on its sheet of paper
-    const pic = await drawPage(pg, 0), dpi = +setting('quality'), paper = setting('paper');
+    const pic = await drawPage(pg, 0), dpi = pg.dpi || +setting('quality'), paper = setting('paper');
     if (paper === 'fit') return { c: pic, ptW: Math.round(pic.width / dpi * 72), ptH: Math.round(pic.height / dpi * 72) };
     const [wi, hi] = PAPER[paper], Wp = Math.round(wi * dpi), Hp = Math.round(hi * dpi), m = Math.round(0.25 * dpi);
     const s = Math.min((Wp - 2 * m) / pic.width, (Hp - 2 * m) / pic.height), w = Math.round(pic.width * s), h = Math.round(pic.height * s);
@@ -337,7 +342,6 @@
   // ---------- settings ----------
   for (const k of Object.keys(BOX).concat(['name', 'paper', 'quality', 'look', 'bleed'])) $(k).addEventListener('change', () => saveSetting(k));
   $('advanced').addEventListener('change', () => { $('advopts').hidden = !$('advanced').checked; });
-  $('lang').addEventListener('change', () => { store.set('lang', $('lang').value); applyLang($('lang').value); });
   $('erase').addEventListener('click', async () => {
     if ($('erase').textContent !== T('eraseAsk')) { $('erase').textContent = T('eraseAsk'); setTimeout(() => { $('erase').textContent = T('erase'); }, 4000); return; }
     pages.length = 0; lastPdf = null; $('result').hidden = true; await HWDB.clear();
@@ -356,17 +360,51 @@
   $('cam').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
   $('gal').addEventListener('change', (e) => { addFiles([...e.target.files]); e.target.value = ''; });
 
+  // ---------- tune to this phone ----------
+  // Time a small standard page, predict the time for a full-size photo, and lower the working size if that would be slow.
+  // A page costs a fixed part (finding the page, which way is up) plus a part that grows with the pixels.
+  // CALIB_MS and FULL_MS are what the small standard page and a full 2400 px photo take on the development desktop.
+  const CALIB_MS = 1100, FULL_MS = 2100, TARGET_MS = 4500;
+  const SLOW = +((location.search.match(/[?&]slow=([\d.]+)/) || [])[1]) || 1; // ?slow=4 pretends the phone is 4 times slower (for tests)
+  function calibImage() { // a dark table, a tilted sheet of paper, and lines of writing
+    const w = 640, h = 480, c = canvasOf(w, h), g = c.getContext('2d');
+    g.fillStyle = '#4a3a2c'; g.fillRect(0, 0, w, h);
+    g.save(); g.translate(w / 2, h / 2); g.rotate(0.07); g.fillStyle = '#efece3'; g.fillRect(-165, -213, 330, 426); // letter-shaped
+    g.fillStyle = '#1d2a55'; for (let i = 0; i < 14; i++) g.fillRect(-135, -180 + i * 25, 90 + (i * 37) % 170, 5);
+    g.restore();
+    return g.getImageData(0, 0, w, h);
+  }
+  async function calibrate() {
+    try {
+      let ms = 0;
+      for (let k = 0; k < 2; k++) { // the first run warms the engine; the second is the one we trust
+        const img = calibImage(), r = await runWorker({ id: -1 - k, width: img.width, height: img.height, rgba: img.data.buffer, opts: { dpi: 100 } }, [img.data.buffer]);
+        if (!r || !r.ok) return; ms = r.ms * SLOW;
+      }
+      const speed = ms / CALIB_MS, predicted = FULL_MS * speed; window.hwSpeed = { calibMs: ms, predictedMs: Math.round(predicted) };
+      if (predicted > TARGET_MS) { // the share of the time left for the pixel part sets the size
+        const share = (TARGET_MS / speed - CALIB_MS) / (FULL_MS - CALIB_MS);
+        maxSide = Math.max(1200, Math.round(maxSide * Math.sqrt(Math.max(0, Math.min(1, share)))));
+      }
+      window.hwSpeed.maxSide = maxSide;
+    } catch (e) { /* keep the defaults */ }
+  }
+
   // ---------- start ----------
   loadSettings(); $('advopts').hidden = !$('advanced').checked;
-  applyLang(store.get('lang', '') || I18N.detect());
+  applyLang();
   startWorker();
   runWorker({ id: 0, width: 4, height: 4, rgba: new Uint8ClampedArray(64).buffer, opts: { dpi: 50 } }) // warm up
-    .then((r) => { if (r && r.ok) { engineReady = true; setStatus('ready'); render(); } else setStatus('stuck'); });
+    .then((r) => { if (r && r.ok) { engineReady = true; setStatus('ready'); render(); calibrate(); } else setStatus('stuck'); });
   setTimeout(() => { if (!engineReady) setStatus('stuck'); }, 45000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   HWDB.loadAll().then((saved) => {
     if (!saved.length || pages.length) return;
-    for (const r of saved) { pages.push(Object.assign(newPage(), r, { busy: false, error: false, ver: 0 })); nextId = Math.max(nextId, r.id + 1); }
+    for (const r of saved) {
+      if (!(r.src instanceof ArrayBuffer) || !(r.blob instanceof ArrayBuffer)) continue; // a record from an older version
+      pages.push(Object.assign(newPage(), r, { src: fromBytes(r.src), blob: fromBytes(r.blob), busy: false, error: false, ver: 0 })); nextId = Math.max(nextId, r.id + 1);
+    }
+    if (!pages.length) return;
     $('restored').hidden = false; render();
   });
   render();

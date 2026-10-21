@@ -64,12 +64,10 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
 </head>
 <body>
 <div id="oldphone">
-  <p><strong>This phone cannot run the full app.</strong> The simple version works on older phones.<br>
-  <strong>Este teléfono no puede usar la aplicación completa.</strong> La versión sencilla funciona en teléfonos más viejos.</p>
-  <a class="btn primary" href="classic/">Simple version / Versión sencilla</a>
+  <p><strong>This phone cannot run HW Scan.</strong> Please try a newer browser, such as Chrome or Firefox.</p>
 </div>
 <script>
-/* ES5 on purpose: it must run on any phone. Without WebAssembly or workers the full app cannot start, so send the student to the simple version. */
+/* ES5 on purpose: it must run on any phone. Without WebAssembly or workers the full app cannot start, so say so plainly. */
 (function () {
   var no = typeof WebAssembly === 'undefined' || !window.Worker || !window.Promise;
   if (no) { document.getElementById('oldphone').style.display = 'block'; document.documentElement.className += ' nofull'; }
@@ -109,8 +107,6 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
     <div>
       <label for="name" data-i="fileName">File name</label>
       <input id="name" type="text" autocomplete="off" data-ph="fileNameHint" placeholder="Math-HW3-Lee-Sam">
-      <label for="lang" data-i="language">Language</label>
-      <select id="lang"></select>
       <label for="paper" data-i="paper">Paper size</label>
       <select id="paper"><option value="letter" data-i="letter">Letter</option><option value="a4" data-i="a4">A4</option><option value="fit" data-i="fit">Match each page</option></select>
       <label for="quality" data-i="quality">Quality</label>
@@ -131,7 +127,6 @@ pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background:
     </div>
   </details>
 
-  <a class="linkbtn" id="classic" href="classic/" data-i="classicLink">Older or slower phone? Use the simple version.</a>
   <p class="quiet" style="margin-top:16px" data-i="footer">Free and open source. Your photos never leave this phone.</p>
 </main>
 
