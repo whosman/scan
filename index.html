@@ -3,75 +3,158 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1f6f5c">
+<meta name="theme-color" content="#ffffff">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HW Scan">
+<meta name="description" content="Turn photos of homework into one clean PDF. Free. Works without internet.">
 <title>HW Scan</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-:root { --bg:#f6f7f5; --card:#ffffff; --ink:#1b1f1d; --muted:#5b625e; --accent:#1f6f5c; --accent-ink:#ffffff; --warn:#8a4b00; --warn-bg:#fff3e0; --line:#d9ddd9; color-scheme: light; }
-@media (prefers-color-scheme: dark) { :root { --bg:#121513; --card:#1b201d; --ink:#e9ece9; --muted:#a3aaa5; --accent:#4fb79c; --accent-ink:#06130f; --warn:#ffcf8a; --warn-bg:#3a2a12; --line:#2d3430; color-scheme: dark; } }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-body { padding: env(safe-area-inset-top, 0) 0 env(safe-area-inset-bottom, 0); }
-header { position: sticky; top: 0; z-index: 5; background: var(--accent); color: var(--accent-ink); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
-header h1 { margin: 0; font-size: 20px; }
-#status { font-size: 13px; opacity: .9; }
-main { max-width: 720px; margin: 0 auto; padding: 12px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
-input[type=text], select { width: 100%; font-size: 16px; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
-.row { display: flex; gap: 8px; }
-.row > * { flex: 1; }
-button, .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 0 14px; font-size: 16px; font-weight: 600; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
-.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-button:disabled { opacity: .5; }
-input[type=file] { display: none; }
-.page { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--line); padding: 10px 0; }
-.page:first-child { border-top: 0; }
-.thumb { width: 96px; flex: none; border: 1px solid var(--line); background: #fff; border-radius: 6px; }
-.meta { flex: 1; min-width: 0; }
-.meta .n { font-weight: 700; }
-.warn { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 4px 8px; margin: 4px 0; font-size: 14px; }
-.tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.tools button { min-height: 40px; padding: 0 10px; font-size: 15px; }
-.busy { color: var(--muted); font-size: 14px; }
-.hint { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
-#empty { color: var(--muted); text-align: center; padding: 18px 0; }
+html, body { margin: 0; background: #fff; color: #000; font: 17px/1.5 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+body { padding: 0 16px 32px; }
+main { max-width: 560px; margin: 0 auto; }
+[hidden] { display: none !important; }
+h1 { font-size: 28px; line-height: 1.2; margin: 28px 0 4px; }
+h2 { font-size: 17px; margin: 32px 0 8px; }
+h2.step:before { counter-increment: step; content: counter(step) ". "; }
+main { counter-reset: step; }
+h3 { font-size: 17px; margin: 0 0 4px; }
+p { margin: 0 0 12px; }
+.lead { font-size: 19px; }
+.quiet { color: #444; font-size: 15px; }
+#status { color: #444; font-size: 15px; margin: 0 0 20px; }
+button, .btn { display: block; width: 100%; min-height: 52px; padding: 12px 16px; margin: 0 0 12px; font: inherit; font-weight: 700; text-align: center; text-decoration: none; color: #000; background: #fff; border: 2px solid #000; border-radius: 6px; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.primary, button[aria-pressed=true] { color: #fff; background: #000; }
+button:disabled { color: #767676; border-color: #767676; background: #fff; cursor: default; }
+button:focus, .btn:focus, input:focus, select:focus, summary:focus { outline: 3px solid #000; outline-offset: 2px; }
+input[type=file] { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+label { display: block; font-weight: 700; margin: 0 0 4px; }
+input[type=text], select { display: block; width: 100%; min-height: 48px; padding: 8px 10px; margin: 0 0 16px; font: inherit; color: #000; background: #fff; border: 2px solid #000; border-radius: 6px; }
+label.check { display: block; font-weight: 400; margin: 0 0 12px; }
+label.check input { width: 24px; height: 24px; margin: 0 10px 0 0; vertical-align: middle; accent-color: #000; }
+input[type=range] { display: block; width: 100%; margin: 4px 0 12px; accent-color: #000; }
+details { border-top: 1px solid #000; margin-top: 28px; padding-top: 12px; }
+summary { font-weight: 700; cursor: pointer; min-height: 40px; }
+details > div { padding-top: 12px; }
+.page { border-top: 1px solid #000; padding: 16px 0 4px; overflow: hidden; }
+.thumb { float: left; width: 96px; margin: 0 16px 8px 0; border: 1px solid #000; background: #fff; cursor: pointer; }
+.note { margin: 0 0 8px; padding-left: 10px; border-left: 4px solid #000; font-size: 16px; }
+.busy { color: #444; }
+.tools { clear: both; padding-top: 4px; }
+.tools button { display: inline-block; width: auto; min-height: 44px; margin: 0 8px 8px 0; padding: 8px 14px; font-size: 16px; }
+#empty { border-top: 1px solid #000; padding-top: 16px; }
+#result { border: 2px solid #000; border-radius: 6px; padding: 16px 16px 4px; margin: 0 0 12px; }
+.seg { display: flex; margin: 0 0 12px; }
+.seg button { margin: 0 -2px 0 0; border-radius: 0; font-size: 16px; padding: 8px 4px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; }
+.seg button:last-child { border-radius: 0 6px 6px 0; margin-right: 0; }
+.row2 { display: flex; justify-content: space-between; color: #444; font-size: 15px; }
+#prev, #cropc { display: block; max-width: 100%; height: auto; margin: 0 auto 12px; border: 1px solid #000; background: #fff; }
+#cropc { touch-action: none; }
+pre { white-space: pre-wrap; word-wrap: break-word; font-size: 13px; background: #fff; border: 1px solid #000; padding: 8px; }
+#oldphone { display: none; padding: 16px; border: 2px solid #000; margin: 24px 0; }
 </style>
 </head>
 <body>
-<header><h1>HW Scan</h1><span id="status">Loading…</span></header>
-<main>
-  <section class="card">
-    <label for="name">File name</label>
-    <input id="name" type="text" autocomplete="off" placeholder="COURSE-HW01-Last-First">
-    <div class="row" style="margin-top:10px">
-      <div><label for="paper">Paper</label><select id="paper"><option value="letter">Letter</option><option value="a4">A4</option></select></div>
-      <div><label for="quality">Quality</label><select id="quality"><option value="200">Standard (small file)</option><option value="300">High</option></select></div>
+<div id="oldphone">This phone is too old for HW Scan. Try a newer browser, such as Chrome or Firefox.<br>Este telÃ©fono es demasiado antiguo. Prueba con un navegador mÃ¡s nuevo, como Chrome o Firefox.</div>
+<script>if (typeof WebAssembly === 'undefined' || !window.Worker) { document.getElementById('oldphone').style.display = 'block'; }</script>
+
+<main id="home">
+  <h1>HW Scan</h1>
+  <p class="lead" data-i="tagline">Photograph your homework. Get one clean PDF.</p>
+  <p id="status" role="status" aria-live="polite">Getting ready. This takes a moment the first time.</p>
+  <noscript><p>This app needs JavaScript. Please turn it on and reload.</p></noscript>
+
+  <h2 class="step" data-i="add">Add your pages</h2>
+  <label class="btn primary" for="cam" tabindex="0" role="button" id="camlabel" data-i="take">Take a photo</label>
+  <label class="btn" for="gal" tabindex="0" role="button" id="gallabel" data-i="choose">Choose photos</label>
+  <input id="cam" type="file" accept="image/*" capture="environment" tabindex="-1">
+  <input id="gal" type="file" accept="image/*" multiple tabindex="-1">
+  <p class="quiet" data-i="tips">Lay the page flat on a table. Fill the screen with it. Hold still. Daylight, or a lamp to one side, works best.</p>
+
+  <h2 class="step" data-i="check">Check them</h2>
+  <p id="restored" class="quiet" data-i="restored" hidden>We saved your pages from last time.</p>
+  <div id="pages"><p id="empty" class="quiet" data-i="none">No pages yet.</p></div>
+
+  <h2 class="step" data-i="make">Make your PDF</h2>
+  <button id="make" class="primary" disabled data-i="makeBtn">Make PDF</button>
+  <div id="result" hidden role="status" aria-live="polite">
+    <h3 data-i="pdfDone">Your PDF is ready.</h3>
+    <p id="pdfinfo" class="quiet"></p>
+    <button id="share" data-i="share">Share</button>
+    <button id="save" data-i="save">Save to this phone</button>
+    <button id="pics" data-i="saveImages">Save as pictures</button>
+  </div>
+  <button id="clear" hidden data-i="startOver">Start over</button>
+
+  <details id="settings">
+    <summary data-i="settings">Settings</summary>
+    <div>
+      <label for="name" data-i="fileName">File name</label>
+      <input id="name" type="text" autocomplete="off" data-ph="fileNameHint" placeholder="Math-HW3-Lee-Sam">
+      <label for="lang" data-i="language">Language</label>
+      <select id="lang"></select>
+      <label for="paper" data-i="paper">Paper size</label>
+      <select id="paper"><option value="letter" data-i="letter">Letter</option><option value="a4" data-i="a4">A4</option><option value="fit" data-i="fit">Match each page</option></select>
+      <label for="quality" data-i="quality">Quality</label>
+      <select id="quality"><option value="150" data-i="qSmall">Small file</option><option value="200" data-i="qStandard">Standard</option><option value="300" data-i="qHigh">High</option></select>
+      <label class="check"><input id="advanced" type="checkbox"><span data-i="advancedOn">Show advanced options</span></label>
+      <div id="advopts" hidden>
+        <label for="look" data-i="defaultLook">Usual look</label>
+        <select id="look"><option value="color" data-i="colour">Colour</option><option value="gray" data-i="gray">Gray</option><option value="bw" data-i="bw">Black and white</option></select>
+        <label for="bleed" data-i="backBleed">Ink from the back of the sheet</label>
+        <select id="bleed"><option value="low" data-i="gentle">Keep it</option><option value="normal" data-i="normal">Normal</option><option value="high" data-i="strong">Remove it</option></select>
+        <label class="check"><input id="autorotate" type="checkbox" checked><span data-i="autorotate">Turn pages upright by themselves</span></label>
+        <label class="check"><input id="searchable" type="checkbox"><span data-i="searchable">Make the text searchable</span></label>
+        <p class="quiet" data-i="searchableHelp">Lets you search the PDF and have it read aloud. Slower. Needs a few MB the first time you use it.</p>
+      </div>
+      <button id="install" hidden data-i="install">Put HW Scan on your home screen</button>
+      <p id="installhelp" class="quiet" data-i="installHelp">In your browser menu, choose â€œAdd to Home screenâ€.</p>
+      <button id="erase" data-i="erase">Erase everything saved on this phone</button>
     </div>
-  </section>
+  </details>
 
-  <section class="card">
-    <div class="row">
-      <label class="btn primary" for="cam">📷 Take photo</label>
-      <label class="btn" for="gal">🖼️ Add from gallery</label>
-    </div>
-    <input id="cam" type="file" accept="image/*" capture="environment">
-    <input id="gal" type="file" accept="image/*" multiple>
-    <p class="hint">Put one page flat on a table. Fill the screen with the page. Hold still. Daylight or a lamp from the side works best.</p>
-  </section>
-
-  <section class="card">
-    <div id="pages"><div id="empty">No pages yet.</div></div>
-  </section>
-
-  <section class="card">
-    <button id="make" class="primary" style="width:100%" disabled>Make PDF</button>
-    <p class="hint" id="pdfinfo"></p>
-  </section>
+  <p class="quiet" style="margin-top:32px" data-i="footer">Free and open source. Your photos never leave this phone.</p>
 </main>
 
+<main id="editor" hidden>
+  <h1 id="edtitle">Page 1</h1>
+  <canvas id="prev"></canvas>
+  <div class="seg" role="group" id="looks">
+    <button type="button" data-look="color" data-i="colour">Colour</button>
+    <button type="button" data-look="gray" data-i="gray">Gray</button>
+    <button type="button" data-look="bw" data-i="bw">Black and white</button>
+  </div>
+  <label for="light" data-i="brightness">Light and dark</label>
+  <input id="light" type="range" min="-50" max="50" value="0">
+  <div class="row2"><span data-i="darker">Darker</span><span data-i="lighter">Lighter</span></div>
+  <div style="height:16px"></div>
+  <button id="edleft" type="button" data-i="left">Turn left</button>
+  <button id="edright" type="button" data-i="right">Turn right</button>
+  <button id="edcrop" type="button" data-i="edges">Adjust the edges</button>
+  <button id="edwhole" type="button" data-i="wholePhoto">Use the whole photo</button>
+  <button id="edretake" type="button" data-i="retake">Retake</button>
+  <details id="eddetails" hidden><summary data-i="details">Details for experts</summary><div><pre id="edinfo"></pre></div></details>
+  <button id="eddone" type="button" class="primary" data-i="done">Done</button>
+</main>
+
+<main id="cropper" hidden>
+  <h1 data-i="edges">Adjust the edges</h1>
+  <p data-i="cropHelp">Drag each dot to a corner of the page.</p>
+  <canvas id="cropc"></canvas>
+  <button id="cropok" type="button" class="primary" data-i="cropApply">Use these edges</button>
+  <button id="cropauto" type="button" data-i="autoEdges">Find the edges again</button>
+  <button id="cropcancel" type="button" data-i="cancel">Cancel</button>
+</main>
+
+<script src="i18n.js"></script>
+<script src="db.js"></script>
+<script src="ocr.js"></script>
 <script src="pdf.js"></script>
 <script src="app.js"></script>
 </body>

@@ -21,10 +21,10 @@ self.onmessage = async (e) => {
   try {
     await ready;
     const t = Date.now();
-    const r = core.processRGBA(width, height, new Uint8ClampedArray(rgba), opts);
-    const clean = r.clean, out = new Uint8Array(clean.data); // copy out of the wasm heap
-    const msg = { id, ok: true, width: clean.cols, height: clean.rows, gray: out.buffer, info: r.info, ms: Date.now() - t };
-    r.page.delete(); clean.delete();
+    const r = core.processRGBA(width, height, new Uint8ClampedArray(rgba), Object.assign({ color: true, fit: false }, opts));
+    const c = r.colorClean, out = new Uint8Array(c.data); // copy out of the wasm heap (RGB, 3 bytes a pixel)
+    const msg = { id, ok: true, width: c.cols, height: c.rows, color: out.buffer, info: r.info, ms: Date.now() - t };
+    r.clean.delete(); c.delete();
     self.postMessage(msg, [out.buffer]);
   } catch (err) {
     self.postMessage({ id, ok: false, error: String(err && err.message || err) });

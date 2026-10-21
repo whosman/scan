@@ -51,8 +51,9 @@
     function rect(w, h) { return cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(w, h)); }
     function bilinear(data, W, H, x, y) { // cv2.remap INTER_LINEAR with BORDER_CONSTANT 0
       const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
-      const g = (xx, yy) => (xx >= 0 && yy >= 0 && xx < W && yy < H) ? data[yy * W + xx] : 0;
-      return (g(x0, y0) * (1 - fx) + g(x0 + 1, y0) * fx) * (1 - fy) + (g(x0, y0 + 1) * (1 - fx) + g(x0 + 1, y0 + 1) * fx) * fy;
+      const x1 = x0 + 1, y1 = y0 + 1, xa = x0 >= 0 && x0 < W, xb = x1 >= 0 && x1 < W, ya = y0 >= 0 && y0 < H, yb = y1 >= 0 && y1 < H;
+      const a = xa && ya ? data[y0 * W + x0] : 0, b = xb && ya ? data[y0 * W + x1] : 0, c = xa && yb ? data[y1 * W + x0] : 0, d = xb && yb ? data[y1 * W + x1] : 0;
+      return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
     }
     function resizeArea(src, w, h) { const d = new cv.Mat(); cv.resize(src, d, new cv.Size(w, h), 0, 0, cv.INTER_AREA); return d; }
 
@@ -69,7 +70,7 @@
         const m = ch.get(c);
         cv.Sobel(m, gx, cv.CV_32F, 1, 0, 3); cv.Sobel(m, gy, cv.CV_32F, 0, 1, 3);
         const X = gx.data32F, Y = gy.data32F, hyp = new Float32Array(N);
-        for (let i = 0; i < N; i++) hyp[i] = Math.hypot(X[i], Y[i]);
+        for (let i = 0; i < N; i++) hyp[i] = Math.sqrt(X[i] * X[i] + Y[i] * Y[i]);
         const noise = median(hyp) + 1e-3;
         for (let i = 0; i < N; i++) { const a = X[i] / noise, b = Y[i] / noise; jxx[i] += a * a; jyy[i] += b * b; jxy[i] += a * b; }
         m.delete();
@@ -371,7 +372,7 @@
       // features for the top candidates
       const lab8 = new cv.Mat(); cv.cvtColor(small, lab8, cv.COLOR_RGB2Lab);
       const Lc = new Uint8Array(N), chroma = new Float32Array(N);
-      const LBD = lab8.data; for (let i = 0; i < N; i++) { Lc[i] = LBD[3 * i]; chroma[i] = Math.hypot(LBD[3 * i + 1] - 128, LBD[3 * i + 2] - 128); }
+      const LBD = lab8.data; for (let i = 0; i < N; i++) { Lc[i] = LBD[3 * i]; const ca = LBD[3 * i + 1] - 128, cb = LBD[3 * i + 2] - 128; chroma[i] = Math.sqrt(ca * ca + cb * cb); }
       const LcM = matU8(H, W, Lc), tmp = new cv.Mat();
       const tL = cv.threshold(LcM, tmp, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU); del(LcM, tmp);
       const c60 = percentile(chroma, 60) + 4;
@@ -506,7 +507,10 @@
     }
 
     // ---------------- 5. cleanup ----------------
-    function flatten(gray) { // paper-shade estimate on a ~500 px copy (same as hwscan2.flatten); returns new 8U Mat
+    function flatten(gray) { // divide by the paper shade; returns new 8U Mat
+      const bg = flattenBg(gray), n = new cv.Mat(); cv.divide(gray, bg, n, 255, -1); bg.delete(); return n;
+    }
+    function flattenBg(gray) { // paper-shade estimate on a ~500 px copy (same as hwscan2.flatten_bg); returns new 8U Mat, at least 1
       const H = gray.rows, W = gray.cols, f = Math.max(1, Math.round(W / 500));
       let src = gray, own = [];
       if (f > 1) {
@@ -519,8 +523,23 @@
       const sg = Math.max(0.5, 0.004 * W / f); let bgs = new cv.Mat(); cv.GaussianBlur(bm, bgs, new cv.Size(0, 0), sg, sg, cv.BORDER_DEFAULT);
       if (f > 1) { const up = new cv.Mat(); cv.resize(bgs, up, new cv.Size(W, H), 0, 0, cv.INTER_LINEAR); bgs.delete(); bgs = up; }
       const one = new cv.Mat(bgs.rows, bgs.cols, cv.CV_8U, new cv.Scalar(1)), bmax = new cv.Mat(); cv.max(bgs, one, bmax);
-      const n = new cv.Mat(); cv.divide(gray, bmax, n, 255, -1);
-      del(bg, bm, bgs, one, bmax, ...own); return n;
+      del(bg, bm, bgs, one, ...own); return bmax;
+    }
+    function colourPage(page, bg, n, valid, hi, lo) { // colour version of the clean page (see colour_page in hwscan2.py); RGB in, RGB out
+      const lutA = new Uint8Array(256); for (let v = 0; v < 256; v++) lutA[v] = Math.trunc(Math.pow(clip((v - lo) / (hi - lo), 0, 1), 1.2) * 255);
+      const lut = matU8(1, 256, lutA), N = n.rows * n.cols, nd = n.data, vd = valid.data, paper = new Uint8Array(N); let np_ = 0;
+      for (let i = 0; i < N; i++) if (nd[i] > 200 && vd[i]) { paper[i] = 1; np_++; }
+      const medOver = (m) => { const h = new Float64Array(256), d = m.data; for (let i = 0; i < N; i++) if (paper[i]) h[d[i]]++; return histMedian(h, np_); };
+      const pg = np_ ? medOver(n) : 250, mv = new cv.MatVector(), outs = new cv.MatVector(); cv.split(page, mv);
+      for (let c = 0; c < 3; c++) {
+        const ch = mv.get(c), nc = new cv.Mat(); cv.divide(ch, bg, nc, 255, -1);
+        const pc = np_ ? medOver(nc) : pg, adj = new cv.Mat(), o = new cv.Mat();
+        cv.convertScaleAbs(nc, adj, pg / Math.max(pc, 1)); cv.LUT(adj, lut, o);
+        outs.push_back(o); del(ch, nc, adj, o);
+      }
+      const col = new cv.Mat(); cv.merge(outs, col); del(mv, outs, lut);
+      const cd = col.data, vd2 = valid.data; for (let i = 0; i < N; i++) if (!vd2[i]) cd[3 * i] = cd[3 * i + 1] = cd[3 * i + 2] = 255;
+      return col;
     }
     function hist8(data, mask) { const h = new Float64Array(256); for (let i = 0; i < data.length; i++) if (!mask || mask[i]) h[data[i]]++; return h; }
     function tone(n, bleed) { // in place on 8U Mat n -> returns levels
@@ -751,13 +770,13 @@
     }
     function rotateSmall(g, deg) {
       const M = cv.getRotationMatrix2D(new cv.Point(g.cols / 2, g.rows / 2), deg, 1), o = new cv.Mat();
-      cv.warpAffine(g, o, M, new cv.Size(g.cols, g.rows), cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar(255)); M.delete(); return o;
+      cv.warpAffine(g, o, M, new cv.Size(g.cols, g.rows), cv.INTER_CUBIC, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255)); M.delete(); return o;
     }
 
     // ---------------- 7. quality ----------------
     function quality(pageGray, glare, dpiEff, frameSides) {
       const warn = [];
-      if (dpiEff < 90) warn.push(`low resolution (${Math.round(dpiEff)} dpi): hold the phone closer`);
+      if (dpiEff < 90) warn.push('The photo is too small to read well. Move the phone closer.');
       const g = resizeArea(pageGray, 800, Math.trunc(800 * pageGray.rows / pageGray.cols));
       const lap = new cv.Mat(); cv.Laplacian(g, lap, cv.CV_32F, 1, 1, 0, cv.BORDER_DEFAULT);
       const thr = percentile(g.data, 3); const N = g.rows * g.cols, ink = new Uint8Array(N); let ni = 0;
@@ -766,11 +785,11 @@
         const im = matU8(g.rows, g.cols, ink), dl = new cv.Mat(), k5 = cv.Mat.ones(5, 5, cv.CV_8U); cv.dilate(im, dl, k5);
         const v = [], DLD = dl.data, LPD = lap.data32F; for (let i = 0; i < N; i++) if (DLD[i]) v.push(Math.abs(LPD[i]));
         del(im, dl, k5);
-        if (percentile(v, 90) < 12) warn.push('blurry: hold still and tap to focus');
+        if (percentile(v, 90) < 12) warn.push('The photo is blurry. Hold still and tap the screen to focus.');
       }
       del(g, lap);
-      if (glare > 0.03) warn.push(`glare on ${Math.round(glare * 100)}% of the page: tilt the phone or move the light`);
-      if (frameSides) warn.push('part of the page is outside the photo');
+      if (glare > 0.03) warn.push('There is glare on the page. Tilt the phone or move the light.');
+      if (frameSides) warn.push('Part of the page is cut off. Keep all four corners in view.');
       return warn;
     }
 
@@ -780,17 +799,16 @@
       const s = Math.min((Wp - 2 * m) / g.cols, (Hp - 2 * m) / g.rows);
       const w = Math.round(g.cols * s), h = Math.round(g.rows * s), r = new cv.Mat();
       cv.resize(g, r, new cv.Size(w, h), 0, 0, s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC);
-      const page = new cv.Mat(Hp, Wp, cv.CV_8U, new cv.Scalar(255));
+      const page = new cv.Mat(Hp, Wp, g.type(), new cv.Scalar(255, 255, 255, 255));
       const y = Math.trunc((Hp - h) / 2), x = Math.trunc((Wp - w) / 2), roi = page.roi(new cv.Rect(x, y, w, h));
       r.copyTo(roi); del(roi, r); return page;
     }
     function process(rgb, opts) { // rgb: 8UC3 RGB Mat; returns { page: 8U Mat (caller deletes), clean: 8U Mat, info }
       opts = Object.assign({ paper: 'letter', dpi: 300, bleed: 'normal', rotate: null, autorotate: true, focal: null }, opts || {});
       const info = { warn: [] }, dpi = opts.dpi;
-      const fp = findPage(rgb); let q = fp.q, frameSides = 0, page, valid;
+      const fp = opts.quad ? { q: opts.quad.map(p => [p[0], p[1]]), how: 'manual' } : findPage(rgb); let q = fp.q, frameSides = 0, page, valid;
       if (q) {
-        const g0 = new cv.Mat(); cv.cvtColor(rgb, g0, cv.COLOR_RGB2GRAY);
-        q = refineCorners(g0, q); g0.delete();
+        if (!opts.quad) { const g0 = new cv.Mat(); cv.cvtColor(rgb, g0, cv.COLOR_RGB2GRAY); q = refineCorners(g0, q); g0.delete(); }
         const H0 = rgb.rows, W0 = rgb.cols;
         frameSides = q.some(c => Math.min(c[0], c[1], W0 - 1 - c[0], H0 - 1 - c[1]) < -2) ? 1 : 0;
         const r = rectify(rgb, q, opts.paper, opts.focal); page = r.page; valid = r.valid;
@@ -799,9 +817,9 @@
         page = rgb.clone(); valid = new cv.Mat(rgb.rows, rgb.cols, cv.CV_8U, new cv.Scalar(255)); info.page = fp.how;
         { const g0 = new cv.Mat(); cv.cvtColor(rgb, g0, cv.COLOR_RGB2GRAY); const G = g0.data, H0 = g0.rows, W0 = g0.cols, b = Math.max(2, Math.trunc(0.03 * Math.max(H0, W0)));
           const ring = []; for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) if (y < b || y >= H0 - b || x < b || x >= W0 - b) ring.push(G[y * W0 + x]);
-          g0.delete(); if (median(ring) < 200) info.warn.push('page edges not found: put the page on a darker table and keep all 4 corners in the photo'); }
+          g0.delete(); if (median(ring) < 200) info.warn.push('The page edges are hard to see. Use a darker table and keep all four corners in view.'); }
       }
-      let gray = new cv.Mat(); cv.cvtColor(page, gray, cv.COLOR_RGB2GRAY); page.delete();
+      let gray = new cv.Mat(); cv.cvtColor(page, gray, cv.COLOR_RGB2GRAY); if (!opts.color) page.delete();
       const N0 = gray.rows * gray.cols; let nv = 0; const gvv = [];
       const VD = valid.data, GRD = gray.data; for (let i = 0; i < N0; i++) if (VD[i]) { nv++; }
       const hv = new Float64Array(256); for (let i = 0; i < N0; i++) if (VD[i] || nv === 0) hv[GRD[i]]++;
@@ -819,25 +837,34 @@
       if (Math.abs(s - 1) > 0.05) {
         const w = Math.round(gray.cols * s), h = Math.round(gray.rows * s);
         const g2 = new cv.Mat(); cv.resize(gray, g2, new cv.Size(w, h), 0, 0, s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC); gray.delete(); gray = g2;
+        if (opts.color) { const p2 = new cv.Mat(); cv.resize(page, p2, new cv.Size(w, h), 0, 0, s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC); page.delete(); page = p2; }
         const v2 = new cv.Mat(); cv.resize(valid, v2, new cv.Size(w, h), 0, 0, cv.INTER_NEAREST); valid.delete(); valid = v2;
       }
-      const n = flatten(gray); gray.delete();
+      const bg = flattenBg(gray), n = new cv.Mat(); cv.divide(gray, bg, n, 255, -1); gray.delete();
       const g = n.clone(); Object.assign(info, tone(g, opts.bleed));
       { const GD2 = g.data, VD2 = valid.data; for (let i = 0; i < GD2.length; i++) if (!VD2[i]) GD2[i] = 255; }
-      valid.delete();
+      const gPre = opts.color ? g.data.slice() : null;
       clearBorder(g, q ? 0.005 : 0.003);
       info.specks = despeckle(g, dpi);
+      let col = null;
+      if (opts.color) { col = colourPage(page, bg, n, valid, info.white, info.black); page.delete(); const CD = col.data, GD3 = g.data;
+        for (let i = 0; i < GD3.length; i++) if (GD3[i] === 255 && gPre[i] !== 255) CD[3 * i] = CD[3 * i + 1] = CD[3 * i + 2] = 255; }
+      valid.delete(); bg.delete();
       let a = 0;
       if (opts.rotate !== null && opts.rotate !== undefined) { a = opts.rotate; info.orient = `${a} (forced)`; }
       else if (!opts.autorotate) { info.orient = 'off'; }
       else { const o = autoOrient(g, !!q); a = o.a; info.orient = `${a} (conf ${o.conf.toFixed(3)}, h/v ${o.hs.toFixed(2)})`; info.orientConf = o.conf;
-        if (o.conf < 1.0) info.warn.push('unsure which way is up: check this page'); }
+        if (o.conf < 1.0) info.warn.push('We could not tell which way is up. Please check this page.'); }
       info.rotation = a;
       let gr = rot(g, a); g.delete();
-      if (!q) { const sk = skewFromStrokes(gr); if (sk !== null && Math.abs(sk) <= 15) { const t = rotateSmall(gr, sk); gr.delete(); gr = t; info.skew = Math.round(sk * 100) / 100; } }
+      let cr = col ? rot(col, a) : null; if (col) col.delete();
+      if (!q) { const sk = skewFromStrokes(gr); if (sk !== null && Math.abs(sk) <= 15) { const t = rotateSmall(gr, sk); gr.delete(); gr = t; info.skew = Math.round(sk * 100) / 100;
+        if (cr) { const t2 = rotateSmall(cr, sk); cr.delete(); cr = t2; } } }
       const nr = rot(n, a); n.delete();
       info.warn.push(...quality(nr, glare, dpiEff, frameSides)); nr.delete();
+      if (opts.fit === false) return { page: null, clean: gr, colorPage: null, colorClean: cr, info }; // the caller lays the page out itself
       const out = fitToPaper(gr, opts.paper, dpi);
+      if (cr) { const outC = fitToPaper(cr, opts.paper, dpi); return { page: out, clean: gr, colorPage: outC, colorClean: cr, info }; }
       return { page: out, clean: gr, info };
     }
     function processRGBA(width, height, rgba, opts) {

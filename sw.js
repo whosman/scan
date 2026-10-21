@@ -1,6 +1,6 @@
 /* sw.js - keeps the whole app on the phone so it works with no internet. */
-const CACHE = 'hwscan-v1';
-const FILES = ['./', 'index.html', 'app.js', 'pdf.js', 'worker.js', 'hwscan-core.js', 'opencv.js', 'updown.json', 'updown.bin',
+const CACHE = 'hwscan-v3';
+const FILES = ['./', 'index.html', 'app.js', 'i18n.js', 'db.js', 'ocr.js', 'pdf.js', 'worker.js', 'hwscan-core.js', 'opencv.js', 'updown.json', 'updown.bin',
   'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
@@ -8,5 +8,9 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((r) => r || fetch(e.request)));
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((r) => r || fetch(e.request).then((res) => {
+    // files used on demand (the text reader) are kept after the first download
+    if (res.ok && /\/ocr\//.test(e.request.url)) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+    return res;
+  })));
 });
