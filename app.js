@@ -23,8 +23,8 @@
     get(k, d) { try { const v = localStorage.getItem('hwscan.' + k); return v === null ? d : v; } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('hwscan.' + k, v); } catch (e) { /* private mode */ } },
   };
-  const BOX = { advanced: 'checkbox', autorotate: 'checkbox', searchable: 'checkbox' };
-  const DEFAULTS = { name: '', paper: 'letter', quality: '300', look: 'gray', autorotate: '1', searchable: '', advanced: '' };
+  const BOX = { advanced: 'checkbox', autorotate: 'checkbox' };
+  const DEFAULTS = { name: '', paper: 'letter', quality: '300', look: 'gray', autorotate: '1', advanced: '' };
   function loadSettings() {
     for (const k of Object.keys(DEFAULTS)) {
       const v = store.get(k, DEFAULTS[k]);
@@ -363,30 +363,25 @@
     return new Uint8Array(await blob.arrayBuffer());
   }
   // One pass over every page at a size cap. A phone that runs out of memory at full size gets a second try at a smaller size.
-  async function buildPdf(cap, good, ocr) {
-    const out = [], t0 = Date.now(); let ocrFailed = false, ocrSkipped = false;
+  async function buildPdf(cap, good) {
+    const out = [];
     for (let i = 0; i < good.length; i++) {
-      if (good.length > 1 && !(ocr && Date.now() - t0 <= 90000)) $('status').textContent = T('makingPage', { n: i + 1, total: good.length });
+      if (good.length > 1) $('status').textContent = T('makingPage', { n: i + 1, total: good.length });
       const f = await fitCanvas(good[i], cap), item = { jpeg: await bytesOf(f.c), pxW: f.c.width, pxH: f.c.height, ptW: f.ptW, ptH: f.ptH, gray: false };
-      if (ocr && Date.now() - t0 > 90000) ocrSkipped = true; // the text reader gets about a minute and a half in all; the pictures are what matter
-      else if (ocr) {
-        $('status').textContent = T('reading', { n: i + 1, total: good.length });
-        try { item.words = await HWOCR.read(f.c, I18N.lang); } catch (e) { if (e && e.message === 'slow') ocrSkipped = true; else ocrFailed = true; /* no text layer; the page itself is fine */ }
-      }
       out.push(item); f.c.width = 0;
     }
     const name = fileName();
-    return { bytes: PDFMini.makePDF(out, name, { lang: I18N.lang }), name, count: out.length, ocrFailed, ocrSkipped };
+    return { bytes: PDFMini.makePDF(out, name, { lang: I18N.lang }), name, count: out.length };
   }
   $('make').addEventListener('click', async () => {
     $('make').disabled = true; $('result').hidden = true; setStatus('making');
-    const good = pages.filter((p) => !p.error), ocr = setting('searchable') && window.HWOCR; let res = null, why = '';
-    for (const cap of [400, 220, 150]) { try { res = await buildPdf(cap, good, ocr); break; } catch (err) { why = String((err && err.message) || err); /* try a smaller size */ } }
+    const good = pages.filter((p) => !p.error); let res = null, why = '';
+    for (const cap of [400, 220, 150]) { try { res = await buildPdf(cap, good); break; } catch (err) { why = String((err && err.message) || err); /* try a smaller size */ } }
     $('make').disabled = false;
-    if (!res) { setStatus('pdfFail'); $('status').textContent += ' (' + why.slice(0, 120) + ')'; return; } // the reason is shown so a problem on one phone can be reported exactly // keep the message on the screen
+    if (!res) { setStatus('pdfFail'); $('status').textContent += ' (' + why.slice(0, 120) + ')'; return; } // the reason stays on the screen so a problem on one phone can be reported exactly
     setStatus('ready');
     lastPdf = { file: new File([res.bytes], res.name + '.pdf', { type: 'application/pdf' }), pages: res.count };
-    $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(res.count), mb: (res.bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name }) + (res.ocrFailed ? ' ' + T('searchFail') : res.ocrSkipped ? ' ' + T('searchSlow') : '');
+    $('pdfinfo').textContent = T('pdfInfo', { pages: I18N.count(res.count), mb: (res.bytes.length / 1e6).toFixed(1) }) + '. ' + T('pdfHelp', { name: lastPdf.file.name });
     $('result').hidden = false; $('share').hidden = !canShareFiles([lastPdf.file]);
     $('result').scrollIntoView && $('result').scrollIntoView();
     await deliver(lastPdf.file);

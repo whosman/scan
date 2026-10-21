@@ -15,7 +15,7 @@ It has no ads, no account and nothing to buy.
 6. Tap **Make PDF**. The phone opens its share menu, or saves the file.
 
 **Settings** holds the file name, paper size and quality.
-**Show advanced options** adds: the usual look of a page, automatic turning, and searchable text.
+**Show advanced options** adds: the usual look of a page and automatic turning.
 
 The pages are saved on the phone as the student works. If the browser closes, they are still there.
 **Erase everything saved on this phone** removes them.
@@ -30,7 +30,6 @@ The work is done by the engine (`../engine/`), a small WebAssembly module writte
 3. Removes shadows and uneven light. Stretches the page by its own ink strength, so faint pencil shows. Removes the paper's colour cast and specks.
 4. Turns the page upright.
 5. Warns about blur, low resolution, glare, a cut-off page and page edges that it cannot find.
-6. Optional: reads the words (Tesseract) and adds them to the PDF as invisible text, so the PDF can be searched.
 
 ## Files
 
@@ -44,7 +43,6 @@ The work is done by the engine (`../engine/`), a small WebAssembly module writte
 | `engine-js.js` | The same engine as plain JavaScript (1.7 MB), for phones with no WebAssembly. About 20 times slower. Fetched only on those phones |
 | `updown.bin`, `updown.json` | Orientation model weights (0.9 MB) |
 | `pdf.js` | PDF writer |
-| `ocr.js`, `ocr/` | Optional text reader (Tesseract.js, Apache-2.0). Fetched only if the student turns on searchable text |
 | `sw.js`, `manifest.webmanifest`, `icon*` | Offline cache and home-screen install |
 
 ## How to put the app online
@@ -64,7 +62,6 @@ Phones then get the new files the next time they are online.
 ## Size and speed
 
 The first visit downloads about 1.3 MB over the network. After that, the app uses no data.
-Searchable text adds about 5 MB, once.
 
 The app is ready in about 0.2 s. A page takes about 0.3 s to clean on a laptop, and photos are cleaned several at a time on phones with more than two cores.
 Photos are reduced to 2400 px on the long side (1800 px on phones with 2 GB of memory or less).
@@ -81,6 +78,6 @@ The app sends no data to any server. It stores the student's settings and unfini
 
 ## Licence
 
-App code and engine: MIT. Tesseract (optional): Apache-2.0.
+App code and engine: MIT.
 The orientation model is trained only on open-licence fonts (DejaVu, SIL OFL fonts).
 No IAM or MathWriting data is in the shipped model.
