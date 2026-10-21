@@ -64,7 +64,7 @@ Phones then get the new files the next time they are online.
 ## Size and speed
 
 The first visit downloads about 1.3 MB over the network. After that, the app uses no data.
-Searchable text adds about 4.5 MB, once.
+Searchable text adds about 5 MB, once.
 
 The app is ready in about 0.2 s. A page takes about 0.3 s to clean on a laptop, and photos are cleaned several at a time on phones with more than two cores.
 Photos are reduced to 2400 px on the long side (1800 px on phones with 2 GB of memory or less).
