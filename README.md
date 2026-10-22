@@ -56,7 +56,8 @@ Free hosts that work: GitHub Pages, Cloudflare Pages, Netlify, a school web serv
 2. Open the address on a phone. Wait until the words "Getting ready" go away.
 3. Turn on airplane mode and reload the page to test offline use.
 
-When you change a file, change `CACHE = 'hwscan-v10'` in `sw.js` to a new name.
+A page that is open reloads itself when a new version arrives (once no page is being cleaned), and Settings shows the version.
+When you change a file, change `CACHE = 'hwscan-v28'` in `sw.js` to a new name.
 Phones then get the new files the next time they are online.
 
 ## Size and speed

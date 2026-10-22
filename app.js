@@ -51,7 +51,7 @@
 
   // ---------- workers ----------
   // One worker a core (at most three, one fewer than the cores so the page stays responsive). Pages are cleaned side by side.
-  const LANES = LOW_MEMORY ? 1 : Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1));
+  const LANES = LOW_MEMORY ? 1 : Math.max(1, Math.min(navigator.deviceMemory >= 6 ? 3 : 2, (navigator.hardwareConcurrency || 2) - 1)); // each worker peaks near 215 MB: two at a time unless the phone says it has 6 GB or more
   const lanes = [], idle = [], jobs = [];
   let running = 0, canOffscreen = false, slowMode = false; // slowMode: the phone has no WebAssembly, so the engine runs as plain JavaScript
   function startLane(i) {
@@ -149,7 +149,7 @@
       else { pg = newPage(); pages.push(pg); }
       replaceId = null; render();
       enqueue(async (lane) => {
-        try { await clean(pg, f, null, lane); } catch (err) { pg.error = true; }
+        try { await clean(pg, f, null, lane); } catch (err) { pg.error = true; window.HWLAST = String((err && err.message) || err); }
         pg.busy = false; pg.raw = null; render(); persist(pg); persistOrder();
       });
     }
@@ -157,7 +157,7 @@
   function reclean(pg, quad) {
     pg.busy = true; pg.error = false; render();
     enqueue(async (lane) => {
-      try { await clean(pg, pg.src, quad, lane); } catch (err) { pg.error = true; }
+      try { await clean(pg, pg.src, quad, lane); } catch (err) { pg.error = true; window.HWLAST = String((err && err.message) || err); }
       pg.busy = false; pg.raw = null; render(); if (!$('editor').hidden && cur() === pg) drawEditor(); persist(pg);
     });
   }
@@ -208,7 +208,7 @@
         const th = el('canvas', 'thumb dim'); th.width = pg.raw.width; th.height = pg.raw.height; th.getContext('2d').drawImage(pg.raw, 0, 0); row.appendChild(th);
       }
       if (!pg.busy && !pg.error) {
-        const th = el('canvas', 'thumb'); th.setAttribute('role', 'img'); th.setAttribute('aria-label', T('preview', { n: i + 1 })); th.onclick = () => openEditor(i);
+        const th = el('canvas', 'thumb'); th.width = 192; th.height = 248; /* a letter page's space is kept from the start, so nothing moves when the picture arrives */ th.setAttribute('role', 'img'); th.setAttribute('aria-label', T('preview', { n: i + 1 })); th.onclick = () => openEditor(i);
         thumbOf(pg).then((c) => { th.width = c.width; th.height = c.height; th.getContext('2d').drawImage(c, 0, 0); });
         row.appendChild(th);
       }
@@ -245,7 +245,7 @@
   const cur = () => editing;
 
   // ---------- page editor ----------
-  function openEditor(i) { editing = pages[i]; if (!editing || editing.busy || editing.error) return; $('edtitle').textContent = T('page', { n: i + 1 }); showView('editor'); drawEditor(); }
+  function openEditor(i) { editing = pages[i]; if (!editing || editing.busy || editing.error) return; $('edtitle').textContent = T('page', { n: i + 1 }); showView('editor'); { const pv = $('prev'); pv.width = 560; pv.height = Math.round(560 * (editing.h || 11) / (editing.w || 8.5)); } /* the preview's space is kept from the start, so the buttons below do not move when it is drawn */ drawEditor(); }
   let drawTicket = 0;
   async function drawEditor() {
     const pg = editing; if (!pg || pg.busy || !pg.blob) return;
@@ -269,7 +269,8 @@
   // ---------- corner editor ----------
   let crop = null; // { pg, img, scale, pts, drag }
   $('edcrop').addEventListener('click', async () => {
-    const pg = editing, bmp = await createImageBitmap(pg.src), c = $('cropc');
+    const pg = editing; let bmp; try { bmp = await createImageBitmap(pg.src); } catch (e) { window.HWLAST = 'crop: ' + String((e && e.message) || e); return; }
+    const c = $('cropc');
     const maxW = Math.min(window.innerWidth - 32, 560), s = Math.min(maxW / pg.sw, (window.innerHeight * 0.65) / pg.sh);
     c.width = Math.round(pg.sw * s); c.height = Math.round(pg.sh * s);
     const m = 0.08, pts = pg.quad ? pg.quad.map((p) => [p[0] * s, p[1] * s]) : [[c.width * m, c.height * m], [c.width * (1 - m), c.height * m], [c.width * (1 - m), c.height * (1 - m)], [c.width * m, c.height * (1 - m)]];
@@ -330,7 +331,7 @@
     return [p[ix(sum, Math.min)], p[ix(dif, Math.max)], p[ix(sum, Math.max)], p[ix(dif, Math.min)]];
   }
   function closeCrop() { if (crop && crop.bmp.close) crop.bmp.close(); crop = null; }
-  $('cropcancel').addEventListener('click', () => { closeCrop(); showView('editor'); drawEditor(); });
+  $('cropcancel').addEventListener('click', () => { closeCrop(); showView('editor'); { const pv = $('prev'); pv.width = 560; pv.height = Math.round(560 * (editing.h || 11) / (editing.w || 8.5)); } /* the preview's space is kept from the start, so the buttons below do not move when it is drawn */ drawEditor(); });
   $('cropauto').addEventListener('click', () => { const pg = crop.pg; closeCrop(); showView('home'); reclean(pg, null); });
   $('cropok').addEventListener('click', () => {
     const pg = crop.pg, q = order4(crop.pts).map((p) => [p[0] / crop.s, p[1] / crop.s]); closeCrop(); showView('home'); reclean(pg, q);
@@ -432,7 +433,14 @@
   applyLang();
   for (let i = 0; i < LANES; i++) { startLane(i); idle.push(i); } // each worker loads the engine and says "ready"
   setTimeout(() => { if (!engineReady) setStatus('stuck'); }, 90000);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // A page keeps the engine it loaded. When a new version takes over, reload as soon as no page is being cleaned, so nobody keeps cleaning with an old engine.
+    const had = !!navigator.serviceWorker.controller; let updating = false;
+    const reloadWhenIdle = () => { if (running || jobs.length) { setTimeout(reloadWhenIdle, 1500); return; } location.reload(); };
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !updating) { updating = true; reloadWhenIdle(); } });
+    navigator.serviceWorker.register('sw.js').then((reg) => { try { reg.update(); } catch (e) { /* offline */ } }).catch(() => {});
+  }
+  if (window.caches && caches.keys) caches.keys().then((ks) => { const v = ks.filter((k) => /^hwscan-/.test(k)).sort().pop(); if (v && $('ver')) $('ver').textContent = 'Version ' + v.replace('hwscan-', ''); }).catch(() => {});
   HWDB.loadAll().then((saved) => {
     if (!saved.length || pages.length) return;
     for (const r of saved) {

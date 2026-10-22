@@ -68,7 +68,7 @@ function run(rgba, width, height, o) {
   const info = {
     found: !!found, page: found ? 'page found' : 'whole photo',
     quad: [[pi[1], pi[2]], [pi[3], pi[4]], [pi[5], pi[6]], [pi[7], pi[8]]],
-    white: pi[9], black: pi[10], specks: pi[11], glare: pi[12], dpiEff: pi[13], rotation: pi[17], orientConf: pi[18],
+    white: pi[9], black: pi[10], specks: pi[11], glare: pi[12], dpiEff: pi[13], net: pi[21] > 0.5, rotation: pi[17], orientConf: pi[18],
     warn: WARN.filter((x) => bits & x[0]).map((x) => x[1]),
     ms: Math.round(performance.now() - t0),
   };
