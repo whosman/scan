@@ -28,6 +28,11 @@
     startOverAsk: 'Tap again to remove all pages',
 
     page: 'Page {n}',
+    cleaningPct: 'Cleaning this page… {pct}%',
+    waiting: 'Waiting for its turn…',
+    cleanedOf: 'Cleaned {done} of {total} pages.',
+    timeSec: 'About {n} seconds left.',
+    timeMin: 'About {n} minutes left.',
     cleaningPage: 'Cleaning this page…',
     good: 'Looks good.',
     edit: 'Edit',

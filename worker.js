@@ -20,14 +20,18 @@ const WARN = [
 
 let usingJs = false;
 // The engine runs as WebAssembly. A phone that has none (older iOS, iOS Lockdown Mode, some school browsers) runs the same engine as plain JavaScript: about 20 times slower, but it works.
+// The engine calls this as it works: stage 1 to 8, and done/total inside stage 5 (the ink network).
+let curJob = 0;
+function progress(stage, done, total) { self.postMessage({ type: 'progress', id: curJob, stage, done, total }); }
 async function loadEngine() {
   if (typeof WebAssembly === 'object' && WebAssembly.instantiate && !/nowasm/.test(self.location.search)) {
     try {
       const url = WebAssembly.validate(SIMD_PROBE) ? 'engine-simd.wasm' : 'engine.wasm';
       const bytes = await (await fetch(url)).arrayBuffer();
-      return (await WebAssembly.instantiate(bytes, {})).instance.exports;
+      return (await WebAssembly.instantiate(bytes, { env: { hw_progress: progress } })).instance.exports;
     } catch (e) { /* blocked or failed: fall through to the JavaScript build */ }
   }
+  self.HWPROGRESS = progress;
   importScripts('engine-js.js');
   usingJs = true;
   return self.HWENGINE;
@@ -86,7 +90,7 @@ async function decode(file, maxSide) {
 }
 
 self.onmessage = async (e) => {
-  const m = e.data;
+  const m = e.data; curJob = m.id;
   try {
     await ready;
     if (m.kind === 'file') {

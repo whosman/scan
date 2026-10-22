@@ -60,33 +60,67 @@
       const m = e.data;
       if (m.type === 'ready') { canOffscreen = !!m.canOffscreen; if (m.slow && !slowMode) { slowMode = true; maxSide = Math.min(maxSide, 1200); } if (readyLanes.add(i).size === LANES) engineIsReady(); return; }
       const p = pending.get(m.id); if (!p) return;
+      p.beat = Date.now();
+      if (m.type === 'progress') { p.f = Math.max(p.f, fraction(m.stage, m.done, m.total)); return; }
       if (m.type === 'decoded') { if (p.onDecoded) p.onDecoded(m); return; }
-      pending.delete(m.id); clearTimeout(p.timer); p.res(m);
+      pending.delete(m.id); clearInterval(p.timer); if (m.ok) avgDur = avgDur ? (avgDur + (Date.now() - p.t0)) / 2 : Date.now() - p.t0; p.res(m);
     };
     w.onerror = () => setStatus('crashed');
     lanes[i] = w;
   }
   const readyLanes = new Set();
+  // Live progress. The engine reports stages; these are the shares of a page's time at each, measured on a desktop. The ETA comes from the clock, not from these numbers.
+  const STAGE = { 1: 0.11, 2: 0.29, 3: 0.36, 4: 0.44, 6: 0.84, 7: 0.96, 8: 0.99 };
+  const fraction = (stage, done, total) => stage === 5 ? 0.44 + 0.4 * (done / Math.max(1, total)) * 0.9 : (STAGE[stage] || 0);
+  let avgDur = 0, batchTotal = 0, batchDone = 0; // avgDur: how long a page took on this phone, milliseconds
+  function pageLeft(p) { // milliseconds left for a page being cleaned, or -1 when we cannot tell yet
+    const el = Date.now() - p.t0;
+    if (p.f >= 0.1) return el * (1 - p.f) / p.f;
+    return avgDur ? Math.max(0, avgDur - el) : -1;
+  }
+  function leftText(ms) {
+    const s = Math.max(5, Math.round(ms / 5000) * 5);
+    return s < 90 ? T('timeSec', { n: s }) : T('timeMin', { n: Math.round(s / 60) });
+  }
+  function tickProgress() {
+    if (!running) return;
+    let sum = 0, known = true, active = 0;
+    for (const p of pending.values()) { if (p.t0 === undefined) continue; active++; const l = pageLeft(p); if (l < 0) known = false; else sum += l; }
+    const queued = jobs.length;
+    const each = avgDur || (active && known ? (sum / active) * 2 : 0);
+    if (queued && !each) known = false;
+    const eta = known ? (sum + queued * each) / Math.max(1, Math.min(LANES, active + queued)) : -1;
+    for (const n of document.querySelectorAll('.busy[data-id]')) {
+      const p = pending.get(+n.dataset.id);
+      n.textContent = p ? (p.f > 0 ? T('cleaningPct', { pct: Math.min(99, Math.round(p.f * 100)) }) : T('cleaningPage')) : T('waiting');
+    }
+    if (statusKey === 'cleaning') {
+      const head = batchTotal > 1 ? T('cleanedOf', { done: batchDone, total: batchTotal }) : T('cleaning');
+      $('status').textContent = eta >= 0 ? head + ' ' + leftText(eta) : head;
+    }
+  }
+  setInterval(tickProgress, 500);
   function restartLane(i) { // a job that never answers must not freeze the app
     try { lanes[i].terminate(); } catch (e) { /* already gone */ }
-    for (const [id, p] of pending) if (p.lane === i) { pending.delete(id); clearTimeout(p.timer); p.res({ ok: false, error: 'restart' }); }
+    for (const [id, p] of pending) if (p.lane === i) { pending.delete(id); clearInterval(p.timer); p.res({ ok: false, error: 'restart' }); }
     startLane(i);
   }
   function submit(msg, transfer, lane, onDecoded) {
     return new Promise((res) => {
-      const p = { res, onDecoded, lane }; pending.set(msg.id, p);
-      p.timer = setTimeout(() => { if (pending.has(msg.id)) { pending.delete(msg.id); res({ ok: false, error: 'timeout' }); restartLane(lane); } }, slowMode ? 900000 : 120000);
+      const p = { res, onDecoded, lane, t0: Date.now(), beat: Date.now(), f: 0 }; pending.set(msg.id, p);
+      // Slow work is fine. Silence is not: the engine reports every second or so, so a worker that says nothing for a minute is stuck.
+      p.timer = setInterval(() => { if (Date.now() - p.beat > (slowMode ? 600000 : 60000) && pending.has(msg.id)) { pending.delete(msg.id); clearInterval(p.timer); res({ ok: false, error: 'timeout' }); restartLane(lane); } }, 5000);
       lanes[lane].postMessage(msg, transfer);
     });
   }
-  function enqueue(job) { jobs.push(job); pump(); } // job(lane) runs on the first free worker
+  function enqueue(job) { jobs.push(job); batchTotal++; pump(); } // job(lane) runs on the first free worker
   function pump() {
     while (jobs.length && idle.length && engineReady) {
       const lane = idle.shift(), job = jobs.shift();
       running++; setStatus('cleaning');
       Promise.resolve().then(() => job(lane)).catch(() => { /* the job marks its own page */ }).then(() => {
-        running--; idle.push(lane);
-        if (!running && !jobs.length) setStatus('ready');
+        running--; idle.push(lane); batchDone++;
+        if (!running && !jobs.length) { setStatus('ready'); batchTotal = batchDone = 0; }
         pump();
       });
     }
@@ -213,7 +247,7 @@
         row.appendChild(th);
       }
       meta.appendChild(el('h3', '', T('page', { n: i + 1 })));
-      if (pg.busy) meta.appendChild(el('div', 'busy', T('cleaningPage')));
+      if (pg.busy) { const b = el('div', 'busy', T(pending.has(pg.id) ? 'cleaningPage' : 'waiting')); b.dataset.id = pg.id; meta.appendChild(b); }
       else if (pg.error) meta.appendChild(el('p', 'warn note', T('cantRead')));
       else {
         const w = (pg.info && pg.info.warn) || [];

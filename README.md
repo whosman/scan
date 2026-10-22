@@ -82,3 +82,7 @@ The app sends no data to any server. It stores the student's settings and unfini
 App code and engine: MIT.
 The orientation model is trained only on open-licence fonts (DejaVu, SIL OFL fonts).
 No IAM or MathWriting data is in the shipped model.
+
+## Progress and time left
+The engine reports its stages (and each row of the ink network) through the import `env.hw_progress`. The worker passes them on; `app.js` turns them into a percentage on each page and a time left in the status line. The time left comes from the clock (time spent divided by share done, and the average page time on this phone), not from fixed numbers. A worker is restarted only after 60 seconds of silence (10 minutes without WebAssembly), so slow work is never cut off.
+
