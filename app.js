@@ -112,7 +112,7 @@
   // photo -> clean colour page; sets pg.blob, pg.src, pg.info, pg.quad. `file` is the photo (a File, or the saved copy when re-cleaning)
   async function clean(pg, file, quad, lane) {
     // always clean at the most the photo can give; the quality setting is applied when the PDF is made
-    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: slowMode ? 150 : LOW_MEMORY ? 200 : 300, margin: MARGIN, autorotate: setting('autorotate'), quad: quad || null };
+    const opts = { paper: setting('paper') === 'a4' ? 'a4' : 'letter', dpi: slowMode ? 150 : LOW_MEMORY ? 240 : 300, margin: MARGIN, autorotate: setting('autorotate'), quad: quad || null };
     let r;
     if (canOffscreen) {
       r = await submit({ kind: 'file', id: pg.id, file, maxSide, opts }, undefined, lane, (m) => { pg.sw = m.w; pg.sh = m.h; pg.raw = thumbOfBitmap(m.thumb); render(); }); // the photo shows at once
