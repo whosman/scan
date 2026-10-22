@@ -35,6 +35,7 @@ async function loadEngine() {
 
 const ready = (async () => {
   X = await loadEngine();
+  if (usingJs) X.hw_set_cp(10, 9); // the ink network is for WebAssembly speed; the JavaScript engine keeps the plain cleaner
   // orientation model
   const meta = await (await fetch('updown.json')).json();
   const raw = await (await fetch('updown.bin')).arrayBuffer();
